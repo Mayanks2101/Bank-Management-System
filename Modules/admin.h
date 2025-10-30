@@ -247,7 +247,7 @@ int addEmployee(int nsd){
 
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &newEmp, sizeof(newEmp));
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -369,7 +369,7 @@ int promoteEmployeeToManager(int nsd){
 
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            unlockFile(fd, offset, sizeof(emp));
+            sleep(5);unlockFile(fd, offset, sizeof(emp));
 
             break;
         }
@@ -442,7 +442,7 @@ int demoteManagerToEmployee(int nsd){
             off_t offset = lseek(fd, -sizeof(emp), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            unlockFile(fd, offset, sizeof(emp));
+            sleep(5);unlockFile(fd, offset, sizeof(emp));
 
             break;
         }
@@ -589,8 +589,8 @@ int modify_employee_details(int nsd){
             off_t offset = lseek(fd, - sizeof(emp), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            unlockFile(fd, offset, sizeof(emp));
-            
+            sleep(5);unlockFile(fd, offset, sizeof(emp));
+
             break;
         }
     }

@@ -8,7 +8,6 @@ int approve_reject_loans(int nsd, int empID);
 int view_assigned_loan_applications(int nsd, int empID);
 int view_customer_transactions(int nsd);
 
-int money_transfer_handler(int nsd, struct Customer *cust);
 int apply_loan_handler(int nsd, int acc_no);
 int view_TransactionHistory(int nsd, int acc_no);
 int addFeedback_handler(int nsd, int custId);
@@ -203,7 +202,7 @@ struct Employee authenticate_employee(int nsd)
                 break;
             }
         }
-        unlockFile(fd, 0, 0);
+        sleep(5);unlockFile(fd, 0, 0);
 
         close(fd);
 
@@ -296,7 +295,7 @@ int add_new_customer(int nsd){
         close(fd);
         return 0;
     }
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     add_transaction_header(newCust.accountNumber);
 
@@ -328,7 +327,7 @@ int add_transaction_header(int accNo){
         close(fd);
         return 0;
     }
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     close(fd);
     return 1;
@@ -357,7 +356,7 @@ int approve_reject_loans(int nsd, int empId){
             strcat(pendingLoanIds, loanIdEntry);
         }
     }
-    unlockFile(fdLoans, 0, 0);
+    sleep(5);unlockFile(fdLoans, 0, 0);
 
 
     if(strlen(pendingLoanIds) == 0){
@@ -448,7 +447,7 @@ int approve_reject_loans(int nsd, int empId){
                     perror("Write to client failed");
                 }
                 
-                unlockFile(fdLoans, 0, 0);
+                sleep(5);unlockFile(fdLoans, 0, 0);
                 close(fdLoans);
                 return 2;
             }
@@ -456,7 +455,7 @@ int approve_reject_loans(int nsd, int empId){
             // Move file pointer back to overwrite
 
             write(fdLoans, &loanApp, sizeof(loanApp));
-            unlockFile(fdLoans, offset, sizeof(loanApp));
+            sleep(5);unlockFile(fdLoans, offset, sizeof(loanApp));
             
             if(decision == 1){
                 // If approved, update customer balance
@@ -478,7 +477,7 @@ int approve_reject_loans(int nsd, int empId){
 
                         // Move file pointer back to overwrite
                         write(fdCust, &cust, sizeof(cust));
-                        unlockFile(fdCust, offset, sizeof(cust));
+                        sleep(5);unlockFile(fdCust, offset, sizeof(cust));
 
                         add_transaction_entry(cust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", loanApp.loanAmount, cust.balance, "Loan Approved ");
 
@@ -532,7 +531,7 @@ int view_assigned_loan_applications(int nsd, int empId){
             strcat(assignedLoanIds, loanIdEntry);
         }
     }
-    unlockFile(fdLoans, 0, 0);
+    sleep(5);unlockFile(fdLoans, 0, 0);
     close(fdLoans);
 
     if(strlen(assignedLoanIds) == 0){
@@ -604,7 +603,7 @@ int view_customer_transactions(int nsd){
             found = 1;
         }
     }
-    unlockFile(fdTrans, 0, 0);
+    sleep(5);unlockFile(fdTrans, 0, 0);
 
     if(!found){
         strcat(allTransactions, "No transactions found for this account number.\n");
@@ -692,7 +691,7 @@ int modify_customer_details(int nsd){
             lseek(fd, offset, SEEK_SET);
             write(fd, &cust, sizeof(cust));
 
-            unlockFile(fd, offset, sizeof(cust));
+            sleep(5);unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }

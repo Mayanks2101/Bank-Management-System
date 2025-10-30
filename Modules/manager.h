@@ -183,7 +183,7 @@ struct Employee authenticate_manager(int nsd)
                 break;
             }
         }
-        unlockFile(fd, 0, 0);
+        sleep(5);unlockFile(fd, 0, 0);
 
         close(fd);
 
@@ -257,7 +257,7 @@ int activate_deactivate_customer_accounts(int nsd){
             writeBytes = write(nsd, statusMsg, strlen(statusMsg));
             if(writeBytes < 0){
                 perror("Write to client failed");
-                unlockFile(fd, offset, sizeof(cust));
+                sleep(5);unlockFile(fd, offset, sizeof(cust));
                 close(fd);
                 return 0;
             }
@@ -290,7 +290,7 @@ int activate_deactivate_customer_accounts(int nsd){
                 strcpy(writeBuffer, "Operation cancelled by manager.\n");
             }
 
-            unlockFile(fd, offset, sizeof(cust));
+            sleep(5);unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }
@@ -337,7 +337,7 @@ int review_customer_feedback(int nsd){
         strcat(writeBuffer, feedbackEntry);
         feedbackCount++;
     }
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -378,7 +378,7 @@ int assign_loan_applications(int nsd){
             strcat(unassignedLoanIds, loanIdEntry);
         }
     }
-    unlockFile(fdLoans, 0, 0);
+    sleep(5);unlockFile(fdLoans, 0, 0);
 
     if(strlen(unassignedLoanIds) == 0){
         strcpy(writeBuffer, "No unassigned loan applications available.\n");
@@ -459,7 +459,7 @@ int assign_loan_applications(int nsd){
         }
     }
 
-    unlockFile(fdLoans, 0, 0);
+    sleep(5);unlockFile(fdLoans, 0, 0);
     close(fdLoans);
 
     sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\n", loanId, empId);

@@ -2,20 +2,20 @@
 int getNextCounterValue(const char* counterType){
     struct Counter counter;
 
-    int cfd = open(COUNTERS_DB, O_RDWR);
-    if(cfd < 0){
+    int fd = open(COUNTERS_DB, O_RDWR);
+    if(fd < 0){
         perror("Failed to open counter database");
         return -1;
     }
 
-    lockFile(cfd, F_WRLCK, 0, 0);
+    lockFile(fd, F_WRLCK, 0, 0);
 
-    int readBytes = read(cfd, &counter, sizeof(counter));
+    int readBytes = read(fd, &counter, sizeof(counter));
     int nextValue = -1;
 
     if(readBytes < 0){
         perror("Failed to read counter data");
-        close(cfd);
+        close(fd);
         return -1;
     }
     else if(readBytes == 0){
@@ -48,16 +48,16 @@ int getNextCounterValue(const char* counterType){
     }
     else{
         printf("Invalid counter type requested - %s\n", counterType);
-        unlockFile(cfd, 0, 0);
-        close(cfd);
+        sleep(5);unlockFile(fd, 0, 0);
+        close(fd);
         return -1;
     }
 
     // Write back updated counters
-    lseek(cfd, 0, SEEK_SET);
-    write(cfd, &counter, sizeof(counter));
-    unlockFile(cfd, 0, 0);
+    lseek(fd, 0, SEEK_SET);
+    write(fd, &counter, sizeof(counter));
+    sleep(5);unlockFile(fd, 0, 0);
 
-    close(cfd);
+    close(fd);
     return nextValue;
 }

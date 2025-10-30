@@ -1,10 +1,10 @@
 #define MAX_TRANS 1024
 
-
-int deposit_handler(int nsd, struct Customer *cust);
-int withdraw_handler(int nsd, struct Customer *cust);
-int money_transfer_handler(int nsd, struct Customer *cust);
+int viewBalance_handler(int nsd, int custId);
+int deposit_handler(int nsd, int custId);
+int withdraw_handler(int nsd, int custId);
 int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amount, float remainingBalance, const char* remarks);
+int money_transfer_handler(int nsd, int custId);
 int view_TransactionHistory(int nsd, int acc_no);
 int addFeedback_handler(int nsd, int custId);
 int apply_loan_handler(int nsd, int accNo);
@@ -60,26 +60,28 @@ void customer_handler(int nsd){
         switch(choice){
             case 1:
                 // View Balance
-                sprintf(writeBuffer, "Current Balance is %.2f.\n", cust.balance);
+                if(viewBalance_handler(nsd, cust.custId) == 0){
+                    strcpy(writeBuffer, "Failed to retrieve balance. Please try again.\n");
+                }
                 break;
 
             case 2:
                 // Deposit
-                if(deposit_handler(nsd, &cust) == 0){
+                if(deposit_handler(nsd, cust.custId) == 0){
                     strcpy(writeBuffer, "Deposit failed. Please try again.\n");
                 }
                 break;
 
             case 3:
                 // Withdraw
-                if(withdraw_handler(nsd, &cust) == 0){
+                if(withdraw_handler(nsd, cust.custId) == 0){
                     strcpy(writeBuffer, "Withdraw failed. Please try again.\n");
                 }
                 break;
 
             case 4:
                 // Money Transfer
-                if(money_transfer_handler(nsd, &cust) == 0){
+                if(money_transfer_handler(nsd, cust.custId) == 0){
                     strcpy(writeBuffer, "Money Transfer failed. Please try again.\n");
                 }
                 break;
@@ -216,7 +218,7 @@ struct Customer authenticate_customer(int nsd)
                 break;
             }
         }
-        unlockFile(fd, 0, 0);
+        sleep(5);unlockFile(fd, 0, 0);
         close(fd);
 
         if(!found){
@@ -236,7 +238,7 @@ struct Customer authenticate_customer(int nsd)
     return cust;
 }
 
-int deposit_handler(int nsd, struct Customer *cust){
+int deposit_handler(int nsd, int custId){
     char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
     int readBytes, writeBytes;
 
@@ -273,9 +275,6 @@ int deposit_handler(int nsd, struct Customer *cust){
         return 2;
     }
 
-    // Update Customer Balance
-    cust->balance += amount;
-
     // Update Customer Record in Database
     int fd = open(CUSTOMERS_DB, O_RDWR);
     if(fd < 0){
@@ -287,16 +286,16 @@ int deposit_handler(int nsd, struct Customer *cust){
 
     // Search and Update Customer Record
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
-        if(tempCust.custId == cust->custId){
-            tempCust.balance = cust->balance;
+        if(tempCust.custId == custId){
+            tempCust.balance += amount;
 
             // Move file pointer back to overwrite
             off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
-            unlockFile(fd, offset, sizeof(tempCust));
+            sleep(5);unlockFile(fd, offset, sizeof(tempCust));
 
-            add_transaction_entry(cust->accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, cust->balance, "Customer Deposited ");
+            add_transaction_entry(tempCust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, tempCust.balance, "Customer Deposited ");
             break;
         }
     }
@@ -312,7 +311,7 @@ int deposit_handler(int nsd, struct Customer *cust){
     return 1;
 }
 
-int withdraw_handler(int nsd, struct Customer *cust){
+int withdraw_handler(int nsd, int custId){
     char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
     int readBytes, writeBytes;
 
@@ -346,17 +345,14 @@ int withdraw_handler(int nsd, struct Customer *cust){
 
     float amount = atof(readBuffer);
 
-    if(amount <= 0 || amount > cust->balance){
-        strcpy(writeBuffer, "Invalid amount or insufficient balance. Withdraw failed.\n");
+    if(amount <= 0){
+        strcpy(writeBuffer, "Invalid amount. Withdraw failed.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
         return 2;
     }
-
-    // Update Customer Balance
-    cust->balance -= amount;
 
     // Update Customer Record in Database
     int fd = open(CUSTOMERS_DB, O_RDWR);
@@ -369,16 +365,26 @@ int withdraw_handler(int nsd, struct Customer *cust){
 
     // Search and Update Customer Record
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
-        if(tempCust.custId == cust->custId){
-            tempCust.balance = cust->balance;
+        if(tempCust.custId == custId){
+            if(tempCust.balance < amount){
+                strcpy(writeBuffer, "Insufficient balance. Withdraw failed.\n");
+                writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                if(writeBytes < 0){
+                    perror("Write to client failed");
+                }
+                close(fd);
+                return 2;
+            }
+
+            tempCust.balance -= amount;
 
             // Move file pointer back to overwrite
             off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
-            unlockFile(fd, offset, sizeof(tempCust));
+            sleep(5);unlockFile(fd, offset, sizeof(tempCust));
 
-            add_transaction_entry(cust->accountNumber, getNextCounterValue("txnId"), "WITHDRAW", amount, cust->balance, "Customer Withdrawn ");
+            add_transaction_entry(tempCust.accountNumber, getNextCounterValue("txnId"), "WITHDRAW", amount, tempCust.balance, "Customer Withdrawn ");
 
             break;
         }
@@ -395,7 +401,7 @@ int withdraw_handler(int nsd, struct Customer *cust){
     return 1;
 }
 
-int money_transfer_handler(int nsd, struct Customer *cust){
+int money_transfer_handler(int nsd, int custId){
     char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
     int readBytes, writeBytes;
 
@@ -445,10 +451,11 @@ int money_transfer_handler(int nsd, struct Customer *cust){
         return 0;
     }
 
+
     float amount = atof(readBuffer);
 
-    if(amount <= 0 || amount > cust->balance){
-        strcpy(writeBuffer, "Invalid amount or insufficient balance. Transfer failed.\n");
+    if(amount <= 0){
+        strcpy(writeBuffer, "Invalid amount.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
@@ -463,58 +470,115 @@ int money_transfer_handler(int nsd, struct Customer *cust){
         return 0;
     }
 
-    struct Customer tempCust;
+    struct Customer tempCust, senderCust, receiverCust;
+    senderCust.custId = custId;
+    receiverCust.accountNumber = recAccNo;
+
     int found = 0;
-    // Search for Recipient Customer
+    off_t senderOffset = -1;
+    off_t receiverOffset = -1;
+
+    // Search for Sender Customer
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
-        if(tempCust.accountNumber == recAccNo){
-            // Update Recipient Balance
-            tempCust.balance += amount;
+        if(tempCust.custId == custId  && tempCust.activeStatus == 1){
+            if(tempCust.balance < amount){
+                strcpy(writeBuffer, "Insufficient balance. Transfer failed.\n");
+                writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                if(writeBytes < 0){
+                    perror("Write to client failed");
+                }
+                close(fd);
+                return 2;
+            }
 
-            // Move file pointer back to overwrite
-            off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
-            lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
-            write(fd, &tempCust, sizeof(tempCust));
-            unlockFile(fd, offset, sizeof(tempCust));
+            if(tempCust.accountNumber == recAccNo){
+                strcpy(writeBuffer, "Cannot transfer to the same account. Transfer failed.\n");
+                writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                if(writeBytes < 0){
+                    perror("Write to client failed");
+                }
+                close(fd);
+                return 2;
+            }
 
-            char remarks[100];
-            sprintf(remarks, "Received from AccNo %d", cust->accountNumber);
-            add_transaction_entry(tempCust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, tempCust.balance, remarks);
+            senderCust = tempCust;
+            //file lock
+            senderOffset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, senderOffset, sizeof(tempCust));
 
-            found = 1;
+            // Update Sender Balance
+            senderCust.balance -= amount;
+            lseek(fd, senderOffset, SEEK_SET);
+            write(fd, &senderCust, sizeof(senderCust));
+            sleep(5);unlockFile(fd, senderOffset, sizeof(senderCust));
+
             break;
         }
     }
 
-    if(!found){
-        strcpy(writeBuffer, "Recipient account not found. Transfer failed.\n");
+    if(senderOffset == -1){
+        strcpy(writeBuffer, "Sender account not found or Inactive. Transfer failed.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
         return 2;
     }
-    
-    // Deduct Amount from Sender Balance
-    cust->balance -= amount;
 
+    // Search for Receiver Customer
     lseek(fd, 0, SEEK_SET); // Reset file pointer to beginning
-
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
-        if(tempCust.accountNumber == cust->accountNumber){
-            tempCust.balance = cust->balance;
-
-            // Move file pointer back to overwrite
-            lseek(fd, -sizeof(tempCust), SEEK_CUR);
-            write(fd, &tempCust, sizeof(tempCust));
-
-            char remarks[100];
-            sprintf(remarks, "Transferred to AccNo %d", recAccNo);
-            add_transaction_entry(cust->accountNumber, getNextCounterValue("txnId"), "TRANSFER", amount, cust->balance, remarks);
-
+        if(tempCust.accountNumber == recAccNo && tempCust.activeStatus == 1){
+            receiverCust = tempCust;
+            //file lock
+            receiverOffset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, receiverOffset, sizeof(tempCust));
+            // Update Recipient Balance
+            receiverCust.balance += amount;
+            lseek(fd, receiverOffset, SEEK_SET);
+            write(fd, &receiverCust, sizeof(receiverCust));
+            sleep(5);unlockFile(fd, receiverOffset, sizeof(receiverCust));
+            found = 1;
             break;
         }
     }
+
+    if(receiverOffset == -1){
+        sleep(5);unlockFile(fd, senderOffset, sizeof(tempCust));
+        strcpy(writeBuffer, "Recipient account not found or Inactive. Transfer failed.\n");
+        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        if(writeBytes < 0){
+            perror("Write to client failed");
+        }
+
+        // Revert Sender Balance Update
+        lseek(fd, 0, SEEK_SET);
+        while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
+            if(tempCust.custId == custId  && tempCust.activeStatus == 1){
+                //file lock
+                off_t revertOffset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+                lockFile(fd, F_WRLCK, revertOffset, sizeof(tempCust));
+
+                tempCust.balance += amount; // Revert balance
+                lseek(fd, revertOffset, SEEK_SET);
+                write(fd, &tempCust, sizeof(tempCust));
+                sleep(5);unlockFile(fd, revertOffset, sizeof(tempCust));
+                break;
+            }
+        }
+
+        return 2;
+    }
+
+    close(fd);
+
+    char r_remarks[1024];
+    sprintf(r_remarks, "Received from AccNo %d", senderCust.accountNumber);
+    add_transaction_entry(receiverCust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, receiverCust.balance, r_remarks);
+
+    char s_remarks[1024];
+    sprintf(s_remarks, "Transferred to AccNo %d", receiverCust.accountNumber);
+    add_transaction_entry(senderCust.accountNumber, getNextCounterValue("txnId"), "TRANSFER", amount, senderCust.balance, s_remarks);
 
     close(fd);
 
@@ -593,9 +657,9 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
             
             strcat(accounts.history, entry);
 
-            off_t offset = lseek(fd, offset, SEEK_SET);
+            offset = lseek(fd, offset, SEEK_SET);
             write(fd, &accounts, sizeof(accounts));
-            unlockFile(fd, offset, sizeof(accounts));
+            sleep(5);unlockFile(fd, offset, sizeof(accounts));
 
             break;
         }
@@ -631,7 +695,7 @@ int view_TransactionHistory(int nsd, int acc_no)
             break;
         }
     }
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -699,7 +763,7 @@ int addFeedback_handler(int nsd, int custId){
 
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &fb, sizeof(fb));
-    unlockFile(fd, 0, 0);
+    sleep(5);unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -767,8 +831,8 @@ int apply_loan_handler(int nsd, int accNo){
     lseek(fd, 0, SEEK_END);
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &loanApp, sizeof(loanApp));
-    unlockFile(fd, 0, 0);
-    
+    sleep(5);unlockFile(fd, 0, 0);
+
     strcpy(writeBuffer, "Loan Application Submitted successfully.\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
@@ -779,4 +843,49 @@ int apply_loan_handler(int nsd, int accNo){
     return 1;
 }
 
+struct Customer fetchCustomer(int custId){
+    struct Customer tempCust;
+    struct Customer cust;
+    cust.custId = -1; 
+    
+    // Open Customer Database
+    int fd = open(CUSTOMERS_DB, O_RDONLY);
+    if(fd < 0){
+        perror("Failed to open customer database");
+        return cust;
+    }
 
+
+    int found = 0;
+
+    lockFile(fd, F_RDLCK, 0, 0);
+    // Search for Customer
+    while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
+        if(tempCust.custId == custId){
+            cust = tempCust;
+            found = 1;
+            break;
+        }
+    }
+    sleep(5);unlockFile(fd, 0, 0);
+    close(fd);
+
+    return cust;
+}
+
+int viewBalance_handler(int nsd, int custId){
+    char writeBuffer[BUFF_SIZE];
+    int writeBytes;
+
+    struct Customer cust = fetchCustomer(custId);
+
+    snprintf(writeBuffer, sizeof(writeBuffer), "Your current balance is: %.2f\n", cust.balance);
+
+    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+    if(writeBytes < 0){
+        perror("Write to client failed");
+        return 0;
+    }
+
+    return 1;
+}
