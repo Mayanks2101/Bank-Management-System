@@ -196,13 +196,14 @@ struct Employee authenticate_employee(int nsd)
         }
 
         int found = 0;
-
+        lockFile(fd, F_RDLCK, 0, 0);
         while(read(fd, &emp, sizeof(emp)) == sizeof(emp)){
             if(emp.empID == empId && strcmp(emp.password, readBuffer) == 0 && emp.role == 1){
                 found = 1;
                 break;
             }
         }
+        unlockFile(fd, 0, 0);
 
         close(fd);
 
@@ -289,12 +290,13 @@ int add_new_customer(int nsd){
         return 0;
     }
     lseek(fd, 0, SEEK_END);
-
+    lockFile(fd, F_WRLCK, 0, 0);
     if(write(fd, &newCust, sizeof(newCust)) != sizeof(newCust)){
         perror("Failed to add new customer");
         close(fd);
         return 0;
     }
+    unlockFile(fd, 0, 0);
 
     add_transaction_header(newCust.accountNumber);
 
@@ -320,11 +322,13 @@ int add_transaction_header(int accNo){
     accounts.acc_no = accNo;
     strcpy(accounts.history, TRANS_HEADER);
     lseek(fd, 0, SEEK_END);
+    lockFile(fd, F_WRLCK, 0, 0);
     if(write(fd, &accounts, sizeof(accounts)) != sizeof(accounts)){
         perror("Failed to add transaction header");
         close(fd);
         return 0;
     }
+    unlockFile(fd, 0, 0);
 
     close(fd);
     return 1;
@@ -345,6 +349,7 @@ int approve_reject_loans(int nsd, int empId){
     char pendingLoanIds[1024] = {0}; // Store pending loan IDs
 
     // Collect Pending Loan Applications
+    lockFile(fdLoans, F_RDLCK, 0, 0);
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
         if(loanApp.empID == empId && loanApp.status == 1){
             char loanIdEntry[1024];
@@ -352,6 +357,8 @@ int approve_reject_loans(int nsd, int empId){
             strcat(pendingLoanIds, loanIdEntry);
         }
     }
+    unlockFile(fdLoans, 0, 0);
+
 
     if(strlen(pendingLoanIds) == 0){
         strcpy(writeBuffer, "No pending loan applications assigned to you.\n");
@@ -423,6 +430,9 @@ int approve_reject_loans(int nsd, int empId){
 
             int decision = atoi(readBuffer);
 
+            off_t offset = lseek(fdLoans, -sizeof(loanApp), SEEK_CUR);
+            lockFile(fdLoans, F_WRLCK, offset, sizeof(loanApp));
+
             // Update Loan Application Status
             if(decision == 1){
                 loanApp.status = 2; // Approved
@@ -438,14 +448,15 @@ int approve_reject_loans(int nsd, int empId){
                     perror("Write to client failed");
                 }
                 
+                unlockFile(fdLoans, 0, 0);
                 close(fdLoans);
                 return 2;
             }
 
             // Move file pointer back to overwrite
-            lseek(fdLoans, -sizeof(loanApp), SEEK_CUR);
-            write(fdLoans, &loanApp, sizeof(loanApp));
 
+            write(fdLoans, &loanApp, sizeof(loanApp));
+            unlockFile(fdLoans, offset, sizeof(loanApp));
             
             if(decision == 1){
                 // If approved, update customer balance
@@ -460,11 +471,14 @@ int approve_reject_loans(int nsd, int empId){
                 // Search for Customer by Account Number
                 while(read(fdCust, &cust, sizeof(cust)) == sizeof(cust)){
                     if(cust.accountNumber == loanApp.accountNumber){
+                        off_t offset = lseek(fdCust, -sizeof(cust), SEEK_CUR);
+                        lockFile(fdCust, F_WRLCK, offset, sizeof(cust));
+
                         cust.balance += loanApp.loanAmount;
 
                         // Move file pointer back to overwrite
-                        lseek(fdCust, -sizeof(cust), SEEK_CUR);
                         write(fdCust, &cust, sizeof(cust));
+                        unlockFile(fdCust, offset, sizeof(cust));
 
                         add_transaction_entry(cust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", loanApp.loanAmount, cust.balance, "Loan Approved ");
 
@@ -504,6 +518,7 @@ int view_assigned_loan_applications(int nsd, int empId){
     char assignedLoanIds[1024] = {0}; // Store assigned loan IDs
 
     // Collect Assigned Loan Applications
+    lockFile(fdLoans, F_RDLCK, 0, 0);
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
         if(loanApp.empID == empId){
             char loanIdEntry[128];
@@ -517,6 +532,8 @@ int view_assigned_loan_applications(int nsd, int empId){
             strcat(assignedLoanIds, loanIdEntry);
         }
     }
+    unlockFile(fdLoans, 0, 0);
+    close(fdLoans);
 
     if(strlen(assignedLoanIds) == 0){
         strcpy(writeBuffer, "No loan applications assigned to you.\n");
@@ -524,7 +541,6 @@ int view_assigned_loan_applications(int nsd, int empId){
         if(writeBytes < 0){
             perror("Write to client failed");
         }
-        close(fdLoans);
         return 2;
     }
 
@@ -534,11 +550,10 @@ int view_assigned_loan_applications(int nsd, int empId){
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
-        close(fdLoans);
         return 0;
     }
 
-    close(fdLoans);
+    
     return 1;
 }
 
@@ -582,12 +597,14 @@ int view_customer_transactions(int nsd){
 
     // Read all transaction histories
     int found = 0;
+    lockFile(fdTrans, F_RDLCK, 0, 0);
     while(read(fdTrans, &transHist, sizeof(transHist)) == sizeof(transHist)){
         if(transHist.acc_no == custAccNo){
             strcat(allTransactions, transHist.history);
             found = 1;
         }
     }
+    unlockFile(fdTrans, 0, 0);
 
     if(!found){
         strcat(allTransactions, "No transactions found for this account number.\n");
@@ -647,14 +664,12 @@ int modify_customer_details(int nsd){
         if(cust.custId == custId){
             found = 1;
 
+            off_t offset = lseek(fd, - sizeof(cust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(cust));
+
             // Print Current Details
             sprintf(writeBuffer, "Current Customer Name - %s\nEnter New Customer Name - ", cust.custName);
-            writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-            if(writeBytes < 0){
-                perror("Write to client failed");
-                close(fd);
-                return 0;
-            }
+            write(nsd, writeBuffer, strlen(writeBuffer));
 
             // Read New Customer Name
             memset(readBuffer, 0, BUFF_SIZE);
@@ -674,23 +689,25 @@ int modify_customer_details(int nsd){
             strncpy(cust.custName, readBuffer, strlen(cust.custName));
 
             // Move file pointer back to overwrite
-            lseek(fd, - sizeof(cust), SEEK_CUR);
+            lseek(fd, offset, SEEK_SET);
             write(fd, &cust, sizeof(cust));
+
+            unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }
+
+    close(fd);
 
     if(!found){
         strcpy(writeBuffer, "Customer ID not found.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
-            close(fd);
             return 0;
         }
         return 2;
     }
-    close(fd);
 
     strcpy(writeBuffer, "Customer details updated successfully.\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));

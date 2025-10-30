@@ -8,6 +8,8 @@ int getNextCounterValue(const char* counterType){
         return -1;
     }
 
+    lockFile(cfd, F_WRLCK, 0, 0);
+
     int readBytes = read(cfd, &counter, sizeof(counter));
     int nextValue = -1;
 
@@ -46,6 +48,7 @@ int getNextCounterValue(const char* counterType){
     }
     else{
         printf("Invalid counter type requested - %s\n", counterType);
+        unlockFile(cfd, 0, 0);
         close(cfd);
         return -1;
     }
@@ -53,7 +56,8 @@ int getNextCounterValue(const char* counterType){
     // Write back updated counters
     lseek(cfd, 0, SEEK_SET);
     write(cfd, &counter, sizeof(counter));
-    close(cfd);
+    unlockFile(cfd, 0, 0);
 
+    close(cfd);
     return nextValue;
 }

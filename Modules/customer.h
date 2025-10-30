@@ -206,6 +206,7 @@ struct Customer authenticate_customer(int nsd)
         struct Customer tempCust;
         int found = 0;
 
+        lockFile(fd, F_RDLCK, 0, 0);
         // Search for Customer
         while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
             tempCust.password[sizeof(tempCust.password) - 1] = '\0'; // Ensure null-termination
@@ -215,6 +216,7 @@ struct Customer authenticate_customer(int nsd)
                 break;
             }
         }
+        unlockFile(fd, 0, 0);
         close(fd);
 
         if(!found){
@@ -289,8 +291,10 @@ int deposit_handler(int nsd, struct Customer *cust){
             tempCust.balance = cust->balance;
 
             // Move file pointer back to overwrite
-            lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
+            unlockFile(fd, offset, sizeof(tempCust));
 
             add_transaction_entry(cust->accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, cust->balance, "Customer Deposited ");
             break;
@@ -369,8 +373,10 @@ int withdraw_handler(int nsd, struct Customer *cust){
             tempCust.balance = cust->balance;
 
             // Move file pointer back to overwrite
-            lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
+            unlockFile(fd, offset, sizeof(tempCust));
 
             add_transaction_entry(cust->accountNumber, getNextCounterValue("txnId"), "WITHDRAW", amount, cust->balance, "Customer Withdrawn ");
 
@@ -466,8 +472,10 @@ int money_transfer_handler(int nsd, struct Customer *cust){
             tempCust.balance += amount;
 
             // Move file pointer back to overwrite
-            lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
+            unlockFile(fd, offset, sizeof(tempCust));
 
             char remarks[100];
             sprintf(remarks, "Received from AccNo %d", cust->accountNumber);
@@ -549,6 +557,12 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
     while(read(fd, &accounts, sizeof(accounts)) == sizeof(accounts)){
         if(accounts.acc_no == acc_no){
             // Ensure no overflow before appending
+            off_t offset = lseek(fd, -sizeof(accounts), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(accounts));
+            //If someone has modified history after reading and before locking
+            lseek(fd, offset, SEEK_SET);
+            read(fd, &accounts, sizeof(accounts));
+
             while(strlen(accounts.history) + strlen(entry) >= MAX_TRANS- 1) {
                 //skip 2lines of header
                 int linesSkipped = 0;
@@ -579,13 +593,10 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
             
             strcat(accounts.history, entry);
 
-            lseek(fd, -sizeof(accounts), SEEK_CUR);
+            off_t offset = lseek(fd, offset, SEEK_SET);
+            write(fd, &accounts, sizeof(accounts));
+            unlockFile(fd, offset, sizeof(accounts));
 
-            if(write(fd, &accounts, sizeof(accounts)) < 0){
-                perror("Failed to write transaction history");
-                close(fd);
-                return 0;
-            }
             break;
         }
     }
@@ -611,6 +622,8 @@ int view_TransactionHistory(int nsd, int acc_no)
     printf("Viewing transaction history for Account No: %d\n", acc_no);
 
     int found = 0;
+
+    lockFile(fd, F_RDLCK, 0, 0);
     while(read(fd, &accounts, sizeof(accounts)) == sizeof(accounts)){
         if(accounts.acc_no == acc_no){
             printf("Account No : %d, History : %s", accounts.acc_no, accounts.history);
@@ -618,6 +631,7 @@ int view_TransactionHistory(int nsd, int acc_no)
             break;
         }
     }
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -683,8 +697,9 @@ int addFeedback_handler(int nsd, int custId){
         return 0;
     }   
 
-    lseek(fd, 0, SEEK_END);
+    lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &fb, sizeof(fb));
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -750,8 +765,10 @@ int apply_loan_handler(int nsd, int accNo){
     }
 
     lseek(fd, 0, SEEK_END);
+    lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &loanApp, sizeof(loanApp));
-
+    unlockFile(fd, 0, 0);
+    
     strcpy(writeBuffer, "Loan Application Submitted successfully.\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){

@@ -21,6 +21,7 @@
 
 #define BUFF_SIZE 4096
 
+#include "Utils/fileLocking.h"
 #include "Utils/menu.h"
 #include "Structures/structures.h"
 #include "Utils/getNextCounter.h"

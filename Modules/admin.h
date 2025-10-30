@@ -95,6 +95,7 @@ void admin_handler(int nsd){
                 return;
             }
         }
+        memset(writeBuffer, 0, BUFF_SIZE);
 
     }
 }
@@ -244,7 +245,9 @@ int addEmployee(int nsd){
         return 0;
     }
 
+    lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &newEmp, sizeof(newEmp));
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -358,11 +361,16 @@ int promoteEmployeeToManager(int nsd){
     while(read(fd, &emp, sizeof(emp)) == sizeof(emp)){
         if(emp.empID == empId && emp.role == 1){
             found = 1;
-            emp.role = 0; // Promote to Manager
 
+            emp.role = 0; // Promote to Manager
+            
             // Move file pointer back to overwrite
-            lseek(fd, - sizeof(emp), SEEK_CUR);
+            off_t offset = lseek(fd, - sizeof(emp), SEEK_CUR);
+
+            lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
+
             break;
         }
     }
@@ -431,8 +439,11 @@ int demoteManagerToEmployee(int nsd){
             emp.role = 1; // Demote to Employee
 
             // Move file pointer back to overwrite
-            lseek(fd, -sizeof(emp), SEEK_CUR);
+            off_t offset = lseek(fd, -sizeof(emp), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
+
             break;
         }
     }
@@ -575,8 +586,11 @@ int modify_employee_details(int nsd){
             strncpy(emp.empName, readBuffer, sizeof(emp.empName) - 1);
 
             // Move file pointer back to overwrite
-            lseek(fd, - sizeof(emp), SEEK_CUR);
+            off_t offset = lseek(fd, - sizeof(emp), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
+            
             break;
         }
     }

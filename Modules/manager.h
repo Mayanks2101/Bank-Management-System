@@ -175,6 +175,7 @@ struct Employee authenticate_manager(int nsd)
         int found = 0;
 
         // Search for Employee
+        lockFile(fd, F_RDLCK, 0, 0);
         while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
             if(tempEmp.empID == empId && strcmp(tempEmp.password, readBuffer) == 0 && tempEmp.role == 0){
                 emp = tempEmp;
@@ -182,6 +183,8 @@ struct Employee authenticate_manager(int nsd)
                 break;
             }
         }
+        unlockFile(fd, 0, 0);
+
         close(fd);
 
         if(!found){
@@ -241,6 +244,9 @@ int activate_deactivate_customer_accounts(int nsd){
         if(cust.custId == custId){
             found = 1;
 
+            off_t offset = lseek(fd, - sizeof(cust), SEEK_CUR);
+            lockFile(fd, F_WRLCK, offset, sizeof(cust));
+
             char statusMsg[100];
             if(cust.activeStatus == 1){
                 sprintf(statusMsg, "Customer is currently ACTIVE.\n\nAre you sure you want to deactivate the account? (y/n): ");
@@ -251,9 +257,11 @@ int activate_deactivate_customer_accounts(int nsd){
             writeBytes = write(nsd, statusMsg, strlen(statusMsg));
             if(writeBytes < 0){
                 perror("Write to client failed");
+                unlockFile(fd, offset, sizeof(cust));
                 close(fd);
                 return 0;
             }
+
 
             // Read Confirmation
             memset(readBuffer, 0, BUFF_SIZE);
@@ -281,6 +289,8 @@ int activate_deactivate_customer_accounts(int nsd){
             else {
                 strcpy(writeBuffer, "Operation cancelled by manager.\n");
             }
+
+            unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }
@@ -319,6 +329,7 @@ int review_customer_feedback(int nsd){
     int feedbackCount = 0;
 
     // Read and Send Feedbacks
+    lockFile(fd, F_RDLCK, 0, 0);
     strcpy(writeBuffer, "===== Customer Feedbacks =====\n");
     while(read(fd, &feedback, sizeof(feedback)) == sizeof(feedback)){
         char feedbackEntry[BUFF_SIZE];
@@ -326,6 +337,7 @@ int review_customer_feedback(int nsd){
         strcat(writeBuffer, feedbackEntry);
         feedbackCount++;
     }
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -358,6 +370,7 @@ int assign_loan_applications(int nsd){
     
 
     // Count Unassigned Loan Applications
+    lockFile(fdLoans, F_RDLCK, 0, 0);
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
         if(loanApp.empID == -1){
             char loanIdEntry[1024];
@@ -365,6 +378,7 @@ int assign_loan_applications(int nsd){
             strcat(unassignedLoanIds, loanIdEntry);
         }
     }
+    unlockFile(fdLoans, 0, 0);
 
     if(strlen(unassignedLoanIds) == 0){
         strcpy(writeBuffer, "No unassigned loan applications available.\n");
@@ -430,6 +444,8 @@ int assign_loan_applications(int nsd){
     int empId = atoi(readBuffer);
 
     // Reset file pointer to beginning
+    lockFile(fdLoans, F_WRLCK, 0, 0);
+
     lseek(fdLoans, 0, SEEK_SET);
 
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
@@ -443,6 +459,7 @@ int assign_loan_applications(int nsd){
         }
     }
 
+    unlockFile(fdLoans, 0, 0);
     close(fdLoans);
 
     sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\n", loanId, empId);
