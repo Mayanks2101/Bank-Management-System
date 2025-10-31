@@ -19,6 +19,7 @@ void printLoanDetails(int fd);
 void printTransactionHistory(int fd);
 void printFeedbacks(int fd);
 void printCounterDB();
+void forceLogout();
 
 int main()
 {
@@ -34,7 +35,7 @@ int main()
     struct TransactionHistory th;
     struct FeedBack fb;
 
-    #define options "1. View Customers\n2. View Employees\n3. View Loan Details\n4. View Transaction History\n5. View Feedbacks\n6. View CounterDB\nEnter your choice: "
+    #define options "1. View Customers\n2. View Employees\n3. View Loan Details\n4. View Transaction History\n5. View Feedbacks\n6. View CounterDB\n7. Force Logout\nEnter your choice: "
 
     while(1){
         int choice;
@@ -60,6 +61,9 @@ int main()
             case 6:
                 printCounterDB();
                 break;
+            case 7:
+                forceLogout();
+                break;
             default:
                 printf("Invalid choice. Please try again.\n");
         }
@@ -82,6 +86,7 @@ void printCustomers(int fd)
         printf("Customer Name: %s\n", temp.custName);
         printf("Balance: %.2f\n", temp.balance);
         printf("Active Status: %d\n", temp.activeStatus);
+        printf("Is Logged In: %d\n", temp.isLoggedIn);
         printf("=======================\n");
     }
 }
@@ -97,6 +102,7 @@ void printEmployees(int fd)
         printf("Password: %s\n", temp1.password);
         printf("Employee Name: %s\n", temp1.empName);
         printf("Role: %d\n", temp1.role);
+        printf("Is Logged In: %d\n", temp1.isLoggedIn);
         printf("=======================\n");
     }
 }
@@ -167,4 +173,45 @@ void printCounterDB()
     printf("====================================================\n");
 
     close(fd);
+}
+
+void forceLogout()
+{
+    int fd = open(EMPPATH, O_RDWR);
+    if(fd < 0){
+        perror("Failed to open employee database");
+        return;
+    }
+
+    struct Employee emp;
+    lseek(fd, 0, SEEK_SET);
+    while(read(fd, &emp, sizeof(emp)) > 0)
+    {
+        if(emp.isLoggedIn){
+            emp.isLoggedIn = 0;
+            lseek(fd, -sizeof(emp), SEEK_CUR);
+            write(fd, &emp, sizeof(emp));
+        }
+    }
+    close(fd);
+
+    fd = open(CUSPATH, O_RDWR);
+    if(fd < 0){
+        perror("Failed to open customer database");
+        return;
+    }
+
+    struct Customer cust;
+    lseek(fd, 0, SEEK_SET);
+    while(read(fd, &cust, sizeof(cust)) > 0)
+    {
+        if(cust.isLoggedIn){
+            cust.isLoggedIn = 0;
+            lseek(fd, -sizeof(cust), SEEK_CUR);
+            write(fd, &cust, sizeof(cust));
+        }
+    }
+    close(fd);
+
+    printf("All users have been forcefully logged out.\n");
 }

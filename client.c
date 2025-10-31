@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <signal.h>
 
 #define BUFF_SIZE 4096
 
@@ -16,6 +17,8 @@ int main()
     int sd, portno = 5050;
     struct sockaddr_in serv;
     char buffer[1024];
+
+    signal(SIGINT, SIG_IGN);
 
     // Socket Create
     sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -122,3 +125,22 @@ void handle_connection(int sd)
     close(sd);
     _exit(0);
 }
+
+
+//Client
+// void sigint_handler(int signum) {
+//     // send special message to server
+//     write(global_socket_fd, "^C\n", 3);  
+// }
+
+// signal(SIGINT, sigint_handler);   // catch Ctrl+C
+// signal(SIGTSTP, SIG_IGN);         // (optional) still ignore Ctrl+Z
+
+
+//server
+// if (strcmp(readBuffer, "^C\n") == 0) {
+//     printf("Client pressed Ctrl+C!\n");
+//     // You can perform:
+//     // logout, rollback, cancel transaction, etc.
+//     continue;
+// }

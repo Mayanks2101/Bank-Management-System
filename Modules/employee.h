@@ -27,6 +27,7 @@ void employee_handler(int nsd){
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return;
     }
 
@@ -108,12 +109,12 @@ void employee_handler(int nsd){
 
             case 7:
                 // Logout
-                log_out(nsd);
+                log_out(nsd, "EMPLOYEE", emp.empID);
                 return;
 
             case 8:
                 // Exit
-                exit_client(nsd);
+                exit_client(nsd, "EMPLOYEE", emp.empID);
                 return;
 
             default:
@@ -194,16 +195,29 @@ struct Employee authenticate_employee(int nsd)
             return emp;
         }
 
+        struct Employee tempEmp;
         int found = 0;
         lockFile(fd, F_RDLCK, 0, 0);
-        while(read(fd, &emp, sizeof(emp)) == sizeof(emp)){
-            if(emp.empID == empId && strcmp(emp.password, readBuffer) == 0 && emp.role == 1){
+        while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
+            if(tempEmp.empID == empId && strcmp(tempEmp.password, readBuffer) == 0 && tempEmp.role == 1){
+                if(tempEmp.isLoggedIn){
+                    // Already logged in
+                    strcpy(writeBuffer, "This Employee is already logged in from another session. Press Enter to try again\n");
+                    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                    if(writeBytes < 0){
+                        perror("Write to client failed");
+                    }
+                    unlockFile(fd, 0, 0);
+                    close(fd);
+                    read(nsd, readBuffer, sizeof(readBuffer)); // Wait for Enter
+                    return emp;
+                }
+                emp = tempEmp;
                 found = 1;
                 break;
             }
         }
-        sleep(5);unlockFile(fd, 0, 0);
-
+        unlockFile(fd, 0, 0);
         close(fd);
 
         if(!found){
@@ -214,6 +228,30 @@ struct Employee authenticate_employee(int nsd)
             }
             continue;
         }
+
+        //Mark Employee as Logged In
+        fd = open(EMPLOYEES_DB, O_RDWR);
+        if(fd < 0){
+            perror("Failed to open employee database");
+            return emp;
+        }
+
+        // Mark Employee as Logged In
+        off_t offset = lseek(fd, -sizeof(emp), SEEK_CUR);
+        lockFile(fd, F_WRLCK, offset, sizeof(emp));
+
+        while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
+            if(tempEmp.empID == emp.empID){
+                tempEmp.isLoggedIn = 1; // Mark as logged in
+                emp = tempEmp;
+                // Move file pointer back to overwrite
+                lseek(fd, - sizeof(tempEmp), SEEK_CUR);
+                write(fd, &tempEmp, sizeof(tempEmp));
+                break;
+            }
+        }
+        unlockFile(fd, offset, sizeof(emp));
+        close(fd);
 
         auth = 1; // Successful authentication
     }
@@ -276,6 +314,7 @@ int add_new_customer(int nsd){
 
     newCust.activeStatus = 1; // Default status as Active
     newCust.balance = 0.0f; // Initial balance
+    newCust.isLoggedIn = 0; // Default to logged out
 
     int custId = getNextCounterValue("custId");
     int accNo = getNextCounterValue("accNo");
@@ -295,7 +334,7 @@ int add_new_customer(int nsd){
         close(fd);
         return 0;
     }
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     add_transaction_header(newCust.accountNumber);
 
@@ -327,7 +366,7 @@ int add_transaction_header(int accNo){
         close(fd);
         return 0;
     }
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
     return 1;
@@ -356,7 +395,7 @@ int approve_reject_loans(int nsd, int empId){
             strcat(pendingLoanIds, loanIdEntry);
         }
     }
-    sleep(5);unlockFile(fdLoans, 0, 0);
+    unlockFile(fdLoans, 0, 0);
 
 
     if(strlen(pendingLoanIds) == 0){
@@ -447,7 +486,7 @@ int approve_reject_loans(int nsd, int empId){
                     perror("Write to client failed");
                 }
                 
-                sleep(5);unlockFile(fdLoans, 0, 0);
+                unlockFile(fdLoans, 0, 0);
                 close(fdLoans);
                 return 2;
             }
@@ -455,7 +494,7 @@ int approve_reject_loans(int nsd, int empId){
             // Move file pointer back to overwrite
 
             write(fdLoans, &loanApp, sizeof(loanApp));
-            sleep(5);unlockFile(fdLoans, offset, sizeof(loanApp));
+            unlockFile(fdLoans, offset, sizeof(loanApp));
             
             if(decision == 1){
                 // If approved, update customer balance
@@ -477,7 +516,7 @@ int approve_reject_loans(int nsd, int empId){
 
                         // Move file pointer back to overwrite
                         write(fdCust, &cust, sizeof(cust));
-                        sleep(5);unlockFile(fdCust, offset, sizeof(cust));
+                        unlockFile(fdCust, offset, sizeof(cust));
 
                         add_transaction_entry(cust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", loanApp.loanAmount, cust.balance, "Loan Approved ");
 
@@ -531,7 +570,7 @@ int view_assigned_loan_applications(int nsd, int empId){
             strcat(assignedLoanIds, loanIdEntry);
         }
     }
-    sleep(5);unlockFile(fdLoans, 0, 0);
+    unlockFile(fdLoans, 0, 0);
     close(fdLoans);
 
     if(strlen(assignedLoanIds) == 0){
@@ -603,7 +642,7 @@ int view_customer_transactions(int nsd){
             found = 1;
         }
     }
-    sleep(5);unlockFile(fdTrans, 0, 0);
+    unlockFile(fdTrans, 0, 0);
 
     if(!found){
         strcat(allTransactions, "No transactions found for this account number.\n");
@@ -691,7 +730,7 @@ int modify_customer_details(int nsd){
             lseek(fd, offset, SEEK_SET);
             write(fd, &cust, sizeof(cust));
 
-            sleep(5);unlockFile(fd, offset, sizeof(cust));
+            unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }

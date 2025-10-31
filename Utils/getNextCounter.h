@@ -48,7 +48,7 @@ int getNextCounterValue(const char* counterType){
     }
     else{
         printf("Invalid counter type requested - %s\n", counterType);
-        sleep(5);unlockFile(fd, 0, 0);
+        unlockFile(fd, 0, 0);
         close(fd);
         return -1;
     }
@@ -56,7 +56,7 @@ int getNextCounterValue(const char* counterType){
     // Write back updated counters
     lseek(fd, 0, SEEK_SET);
     write(fd, &counter, sizeof(counter));
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
     return nextValue;

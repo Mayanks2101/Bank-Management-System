@@ -84,12 +84,12 @@ void manager_handler(int nsd){
 
             case 5:
                 // Logout
-                log_out(nsd);
+                log_out(nsd, "MANAGER", manager.empID);
                 return;
 
             case 6:
                 // Exit
-                exit_client(nsd);
+                exit_client(nsd, "MANAGER", manager.empID);
                 return;
 
             default:
@@ -178,13 +178,23 @@ struct Employee authenticate_manager(int nsd)
         lockFile(fd, F_RDLCK, 0, 0);
         while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
             if(tempEmp.empID == empId && strcmp(tempEmp.password, readBuffer) == 0 && tempEmp.role == 0){
+                if(tempEmp.isLoggedIn){
+                    strcpy(writeBuffer, "This Manager is already logged in from another session. Press Enter to try again.\n");
+                    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                    if(writeBytes < 0){
+                        perror("Write to client failed");
+                    }
+                    unlockFile(fd, 0, 0);
+                    close(fd);
+                    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+                    return emp;
+                }
                 emp = tempEmp;
                 found = 1;
                 break;
             }
         }
-        sleep(5);unlockFile(fd, 0, 0);
-
+        unlockFile(fd, 0, 0);
         close(fd);
 
         if(!found){
@@ -196,6 +206,28 @@ struct Employee authenticate_manager(int nsd)
             }
             continue;
         }
+
+        //Mark as logged in
+        fd = open(EMPLOYEES_DB, O_RDWR);
+        if(fd < 0){
+            perror("Failed to open employee database");
+            return emp;
+        }
+
+        off_t offset = lseek(fd, 0, SEEK_SET);
+        lockFile(fd, F_WRLCK, 0, 0);
+        while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
+            if(tempEmp.empID == emp.empID){
+                tempEmp.isLoggedIn = 1;
+                lseek(fd, -sizeof(tempEmp), SEEK_CUR);
+                write(fd, &tempEmp, sizeof(tempEmp));
+                emp = tempEmp;
+                break;
+            }
+        }
+        unlockFile(fd, 0, 0);
+        close(fd);
+
         auth = 1;
 
     }
@@ -257,7 +289,7 @@ int activate_deactivate_customer_accounts(int nsd){
             writeBytes = write(nsd, statusMsg, strlen(statusMsg));
             if(writeBytes < 0){
                 perror("Write to client failed");
-                sleep(5);unlockFile(fd, offset, sizeof(cust));
+                unlockFile(fd, offset, sizeof(cust));
                 close(fd);
                 return 0;
             }
@@ -290,7 +322,7 @@ int activate_deactivate_customer_accounts(int nsd){
                 strcpy(writeBuffer, "Operation cancelled by manager.\n");
             }
 
-            sleep(5);unlockFile(fd, offset, sizeof(cust));
+            unlockFile(fd, offset, sizeof(cust));
             break;
         }
     }
@@ -337,7 +369,7 @@ int review_customer_feedback(int nsd){
         strcat(writeBuffer, feedbackEntry);
         feedbackCount++;
     }
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -378,7 +410,7 @@ int assign_loan_applications(int nsd){
             strcat(unassignedLoanIds, loanIdEntry);
         }
     }
-    sleep(5);unlockFile(fdLoans, 0, 0);
+    unlockFile(fdLoans, 0, 0);
 
     if(strlen(unassignedLoanIds) == 0){
         strcpy(writeBuffer, "No unassigned loan applications available.\n");
@@ -459,7 +491,7 @@ int assign_loan_applications(int nsd){
         }
     }
 
-    sleep(5);unlockFile(fdLoans, 0, 0);
+    unlockFile(fdLoans, 0, 0);
     close(fdLoans);
 
     sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\n", loanId, empId);

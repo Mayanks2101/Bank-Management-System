@@ -119,12 +119,12 @@ void customer_handler(int nsd){
 
             case 9:
                 // Logout
-                log_out(nsd);
+                log_out(nsd, "CUSTOMER", cust.custId);
                 return;
 
             case 10:
                 // Exit
-                exit_client(nsd);
+                exit_client(nsd, "CUSTOMER", cust.custId);
                 return;
 
             default:
@@ -138,6 +138,9 @@ void customer_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
+            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+            printf("received message and length is %d\n", readBytes);
+            printf("Message is %s\n", readBuffer);
         }
     }
 }
@@ -213,12 +216,27 @@ struct Customer authenticate_customer(int nsd)
         while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
             tempCust.password[sizeof(tempCust.password) - 1] = '\0'; // Ensure null-termination
             if(tempCust.custId == custId && strcmp(tempCust.password, readBuffer) == 0 && tempCust.activeStatus == 1){
+                if(tempCust.isLoggedIn == 1){
+                    strcpy(writeBuffer, "Customer already logged in from another session. Press Enter to try again\n");
+                    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                    if(writeBytes < 0){
+                        perror("Write to client failed");
+                        close(fd);
+                        return cust;
+                    }
+
+                    unlockFile(fd, 0, 0);
+                    close(fd);
+                    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+                    return cust;
+                }
+
                 cust = tempCust;
                 found = 1;
                 break;
             }
         }
-        sleep(5);unlockFile(fd, 0, 0);
+        unlockFile(fd, 0, 0);
         close(fd);
 
         if(!found){
@@ -232,6 +250,29 @@ struct Customer authenticate_customer(int nsd)
             readBytes = read(nsd, readBuffer, sizeof(readBuffer));
             continue;
         }
+
+        // Mark Customer as Logged In
+        fd = open(CUSTOMERS_DB, O_RDWR);
+        if(fd < 0){
+            perror("Failed to open customer database for update");
+            return cust;
+        }
+
+        off_t offset = lseek(fd, 0, SEEK_SET);
+        lockFile(fd, F_WRLCK, 0, 0);
+        while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
+            if(tempCust.custId == cust.custId){
+                tempCust.isLoggedIn = 1;
+                cust = tempCust;
+                // Move file pointer back to overwrite
+                lseek(fd, - sizeof(tempCust), SEEK_CUR);
+                write(fd, &tempCust, sizeof(tempCust));
+                break;
+            }
+        }
+        unlockFile(fd, 0, 0);
+        close(fd);
+
         auth = 1;
 
     }
@@ -293,7 +334,7 @@ int deposit_handler(int nsd, int custId){
             off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
-            sleep(5);unlockFile(fd, offset, sizeof(tempCust));
+            unlockFile(fd, offset, sizeof(tempCust));
 
             add_transaction_entry(tempCust.accountNumber, getNextCounterValue("txnId"), "DEPOSIT", amount, tempCust.balance, "Customer Deposited ");
             break;
@@ -382,7 +423,7 @@ int withdraw_handler(int nsd, int custId){
             off_t offset = lseek(fd, -sizeof(tempCust), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(tempCust));
             write(fd, &tempCust, sizeof(tempCust));
-            sleep(5);unlockFile(fd, offset, sizeof(tempCust));
+            unlockFile(fd, offset, sizeof(tempCust));
 
             add_transaction_entry(tempCust.accountNumber, getNextCounterValue("txnId"), "WITHDRAW", amount, tempCust.balance, "Customer Withdrawn ");
 
@@ -510,7 +551,7 @@ int money_transfer_handler(int nsd, int custId){
             senderCust.balance -= amount;
             lseek(fd, senderOffset, SEEK_SET);
             write(fd, &senderCust, sizeof(senderCust));
-            sleep(5);unlockFile(fd, senderOffset, sizeof(senderCust));
+            unlockFile(fd, senderOffset, sizeof(senderCust));
 
             break;
         }
@@ -537,14 +578,14 @@ int money_transfer_handler(int nsd, int custId){
             receiverCust.balance += amount;
             lseek(fd, receiverOffset, SEEK_SET);
             write(fd, &receiverCust, sizeof(receiverCust));
-            sleep(5);unlockFile(fd, receiverOffset, sizeof(receiverCust));
+            unlockFile(fd, receiverOffset, sizeof(receiverCust));
             found = 1;
             break;
         }
     }
 
     if(receiverOffset == -1){
-        sleep(5);unlockFile(fd, senderOffset, sizeof(tempCust));
+        unlockFile(fd, senderOffset, sizeof(tempCust));
         strcpy(writeBuffer, "Recipient account not found or Inactive. Transfer failed.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -562,7 +603,7 @@ int money_transfer_handler(int nsd, int custId){
                 tempCust.balance += amount; // Revert balance
                 lseek(fd, revertOffset, SEEK_SET);
                 write(fd, &tempCust, sizeof(tempCust));
-                sleep(5);unlockFile(fd, revertOffset, sizeof(tempCust));
+                unlockFile(fd, revertOffset, sizeof(tempCust));
                 break;
             }
         }
@@ -601,7 +642,7 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
     char timeStr[20];
-    strftime(timeStr, sizeof(timeStr)-1, "%Y-%m-%d %H:%M:%S", t);
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", t);
 
     char sign = (strcmp(txnType, "WITHDRAW") == 0 || strcmp(txnType, "TRANSFER") == 0 || 
                  strcmp(txnType, "LOAN_PAYMENT") == 0) ? '-' : '+';
@@ -659,7 +700,7 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
 
             offset = lseek(fd, offset, SEEK_SET);
             write(fd, &accounts, sizeof(accounts));
-            sleep(5);unlockFile(fd, offset, sizeof(accounts));
+            unlockFile(fd, offset, sizeof(accounts));
 
             break;
         }
@@ -695,7 +736,7 @@ int view_TransactionHistory(int nsd, int acc_no)
             break;
         }
     }
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -763,7 +804,7 @@ int addFeedback_handler(int nsd, int custId){
 
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &fb, sizeof(fb));
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -831,7 +872,7 @@ int apply_loan_handler(int nsd, int accNo){
     lseek(fd, 0, SEEK_END);
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &loanApp, sizeof(loanApp));
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     strcpy(writeBuffer, "Loan Application Submitted successfully.\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
@@ -867,7 +908,7 @@ struct Customer fetchCustomer(int custId){
             break;
         }
     }
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
     close(fd);
 
     return cust;

@@ -6,11 +6,13 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <time.h>
 
 #define ADMINNAME "admin"
 #define ADMINPASS "admin"
 
+#define ADMIN_LOCK_DB "db/adminLock"
 #define COUNTERS_DB "db/counters"
 #define CUSTOMERS_DB "db/customers"
 #define EMPLOYEES_DB "db/employees"
@@ -119,23 +121,32 @@ void handle_client(int nsd)
 				switch (choice)
 				{
 				case 1:
+					signal(SIGINT, SIG_IGN); // Ignore SIGINT in child process
 					customer_handler(nsd);
+					signal(SIGINT, SIG_DFL); // Restore default behavior
 					break;
 
 				case 2:
+					signal(SIGINT, SIG_IGN); // Ignore SIGINT in child process
 					employee_handler(nsd);
+					signal(SIGINT, SIG_DFL); // Restore default behavior
 					break;
 
 				case 3:
+					signal(SIGINT, SIG_IGN); // Ignore SIGINT in child process
 					manager_handler(nsd);
+					signal(SIGINT, SIG_DFL); // Restore default behavior
 					break;
 
 				case 4:
+					signal(SIGINT, SIG_IGN); // Ignore SIGINT in child process
 					admin_handler(nsd);
+					signal(SIGINT, SIG_DFL); // Restore default behavior
 					break;
 
 				case 5:
-					exit_client(nsd);
+					close(nsd);
+					exit(0);
 					return;
 
 				default:

@@ -14,6 +14,7 @@ struct Employee{
     int empID;
     char empName[50];
     char password[256];
+    int isLoggedIn; // 0 -> logged out, 1 -> logged in
     int role; // 0 -> Manager, 1 -> Employee
 };
 
@@ -31,6 +32,7 @@ struct Customer {
     float balance;
     char custName[20];
     char password[256];
+    int isLoggedIn; // 0 -> logged out, 1 -> logged in
     int activeStatus; // 0 -> deactivate, 1 -> activate
 };
 

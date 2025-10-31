@@ -12,7 +12,8 @@ void admin_handler(int nsd){
     char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
     int readBytes, writeBytes;
 
-    if(!authenticate_admin(nsd)){
+    int auth = authenticate_admin(nsd);
+    if(auth == 0){
         memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Admin authentication failed.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
@@ -20,6 +21,10 @@ void admin_handler(int nsd){
             perror("Write to client failed");
         }
         return; // Authentication failed
+    }
+    else if(auth == 2){
+        return;
+        // Admin is logged in
     }
     printf("Admin authenticated successfully.\n");
 
@@ -79,7 +84,7 @@ void admin_handler(int nsd){
 
             case 4:
                 // Logout
-                log_out(nsd);
+                log_out(nsd, "ADMIN", -1);
                 return;
 
                 
@@ -177,6 +182,44 @@ int authenticate_admin(int nsd){
             continue;
         }
 
+        // Check if Admin is already logged in
+        int fd = open(ADMIN_LOCK_DB, O_RDWR | O_CREAT, 0644);
+        if(fd < 0){
+            perror("Failed to open admin lock database");
+            return 0;
+        }
+        int isLoggedIn;
+        lockFile(fd, F_WRLCK, 0, 0);
+
+        off_t size = lseek(fd, 0, SEEK_END);
+        lseek(fd, 0, SEEK_SET);
+
+        if(size >= sizeof(isLoggedIn)){
+            lseek(fd, 0, SEEK_SET);
+            read(fd, &isLoggedIn, sizeof(isLoggedIn));
+            if(isLoggedIn){
+                memset(writeBuffer, 0, BUFF_SIZE);
+                strcpy(writeBuffer, "Admin already logged in from another session. Press Enter to Continue.\n");
+                writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                if(writeBytes < 0){
+                    perror("Write to client failed");
+                    unlockFile(fd, 0, 0);
+                    close(fd);
+                    return 0;
+                }
+                unlockFile(fd, 0, 0);
+                close(fd);
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+                return 2;
+            }
+        }
+        
+        isLoggedIn = 1; // Mark as logged in
+        lseek(fd, 0, SEEK_SET);
+        write(fd, &isLoggedIn, sizeof(isLoggedIn));
+        unlockFile(fd, 0, 0);
+        close(fd);
+
         auth = 1; // Successful authentication
     }
     return 1;
@@ -237,6 +280,7 @@ int addEmployee(int nsd){
     strncpy(newEmp.password, readBuffer, sizeof(newEmp.password) - 1);
 
     newEmp.role = 1; // Default role as Employee
+    newEmp.isLoggedIn = 0; // Default to logged out
     newEmp.empID = getNextCounterValue("empId");
 
     int fd = open(EMPLOYEES_DB, O_WRONLY | O_CREAT | O_APPEND, 0644);
@@ -247,7 +291,7 @@ int addEmployee(int nsd){
 
     lockFile(fd, F_WRLCK, 0, 0);
     write(fd, &newEmp, sizeof(newEmp));
-    sleep(5);unlockFile(fd, 0, 0);
+    unlockFile(fd, 0, 0);
 
     close(fd);
 
@@ -369,7 +413,7 @@ int promoteEmployeeToManager(int nsd){
 
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            sleep(5);unlockFile(fd, offset, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
 
             break;
         }
@@ -442,7 +486,7 @@ int demoteManagerToEmployee(int nsd){
             off_t offset = lseek(fd, -sizeof(emp), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            sleep(5);unlockFile(fd, offset, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
 
             break;
         }
@@ -589,7 +633,7 @@ int modify_employee_details(int nsd){
             off_t offset = lseek(fd, - sizeof(emp), SEEK_CUR);
             lockFile(fd, F_WRLCK, offset, sizeof(emp));
             write(fd, &emp, sizeof(emp));
-            sleep(5);unlockFile(fd, offset, sizeof(emp));
+            unlockFile(fd, offset, sizeof(emp));
 
             break;
         }

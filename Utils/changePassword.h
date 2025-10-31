@@ -47,7 +47,7 @@ int change_password(int nsd, char *userType, int userId){
                 break;
             }
         }
-        sleep(5);unlockFile(fd, 0, 0);
+        unlockFile(fd, 0, 0);
         close(fd);
     }
     else{
@@ -71,7 +71,7 @@ int change_password(int nsd, char *userType, int userId){
                 break;
             }
         }
-        sleep(5);unlockFile(fd, 0, 0);
+        unlockFile(fd, 0, 0);
         close(fd);
     }
     return 1;
