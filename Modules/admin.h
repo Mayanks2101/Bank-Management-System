@@ -64,21 +64,21 @@ void admin_handler(int nsd){
             case 1:
                 // Add New Bank Employee
                 if(addEmployee(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to add New Employee.  Please try Again.\n");
+                    strcpy(writeBuffer, "Failed to add New Employee. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 2:
                 // Modify Customer/Employee Details
                 if(modify_customer_employee_details(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to modify Customer details. Please Try Again.\n");
+                    strcpy(writeBuffer, "Failed to modify Customer details.\nPress 1 to continue..\n");
                 }
                 break;
 
             case 3:
                 // Manage User Roles
                 if(manage_user_roles(nsd) == 0){
-                    strcpy(writeBuffer, "User roles not Changed. Please Try Again.\n");
+                    strcpy(writeBuffer, "User roles not Changed.\nPress 1 to continue..\n");
                 }
                 break;
 
@@ -89,7 +89,7 @@ void admin_handler(int nsd){
 
                 
             default:
-                strcpy(writeBuffer, "Invalid choice. Try again.\n");
+                strcpy(writeBuffer, "Invalid choice. \nPress 1 to continue..\n");
                 break;
         }
 
@@ -99,6 +99,7 @@ void admin_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         }
         memset(writeBuffer, 0, BUFF_SIZE);
 
@@ -161,25 +162,26 @@ int authenticate_admin(int nsd){
     // Check Admin Name
     if(strcmp(adminName, ADMINNAME) != 0){
         memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "Invalid Admin Name. Try again.\n");
+        strcpy(writeBuffer, "Invalid Admin Name. Press 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
             return 0;
         }
-        // readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
     // Check Admin Password
     if(strcmp(adminPass, ADMINPASS) != 0){
         memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "Invalid Admin Password. Try again.\n");
+        strcpy(writeBuffer, "Invalid Admin Password. Press 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, BUFF_SIZE);
         if(writeBytes < 0){
             perror("Write to client failed");
             return 0;
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -200,7 +202,7 @@ int authenticate_admin(int nsd){
         read(fd, &isLoggedIn, sizeof(isLoggedIn));
         if(isLoggedIn){
             memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Admin already logged in from another session. Press Enter to Continue.\n");
+            strcpy(writeBuffer, "Admin already logged in from another session.  Press 1 to continue..\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
@@ -210,7 +212,7 @@ int authenticate_admin(int nsd){
             }
             unlockFile(fd, 0, 0);
             close(fd);
-            // readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
             return 2;
         }
     }
@@ -294,12 +296,13 @@ int addEmployee(int nsd){
 
     close(fd);
 
-    sprintf(writeBuffer, "Employee added successfully.\nPlease Note Employee ID for future references.\nEmployee ID: %d\n", newEmp.empID);
+    sprintf(writeBuffer, "Employee added successfully.\nPlease Note Employee ID for future references.\nEmployee ID: %d \nPress 1 to continue..\n", newEmp.empID);
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+
     return 1;
 }
 
@@ -331,8 +334,9 @@ int manage_user_roles(int nsd){
     
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
-            strcpy(writeBuffer, "No input received. Operation cancelled.\n");
+            strcpy(writeBuffer, "No input received. Operation cancelled.\nPress 1 to continue..\n");
             write(nsd, writeBuffer, strlen(writeBuffer));
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
             return 2;
         }
 
@@ -355,8 +359,9 @@ int manage_user_roles(int nsd){
                 return 1;
 
             default:
-                strcpy(writeBuffer, "Invalid choice. Try again.\n");
+                strcpy(writeBuffer, "Invalid choice. \nPress 1 to continue..\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                 continue;
         }
 
@@ -427,20 +432,21 @@ int promoteEmployeeToManager(int nsd){
     close(fd);
 
     if(!found){
-        strcpy(writeBuffer, "Employee ID not found. Press Enter to continue.\n");
+        strcpy(writeBuffer, "Employee ID not found. \nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
-        // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
-    strcpy(writeBuffer, "Employee promoted to Manager successfully.\n");
+    strcpy(writeBuffer, "Employee promoted to Manager successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
     return 1;
 }
 
@@ -500,20 +506,21 @@ int demoteManagerToEmployee(int nsd){
     close(fd);
 
     if(!found){
-        strcpy(writeBuffer, "Manager ID not found. Press Enter to continue.\n");
+        strcpy(writeBuffer, "Manager ID not found. \nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
-        // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
-    strcpy(writeBuffer, "Manager demoted to Employee successfully.\n");
+    strcpy(writeBuffer, "Manager demoted to Employee successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){ 
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
     
     return 1;
 }
@@ -541,8 +548,9 @@ int modify_customer_employee_details(int nsd){
     
     readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
     if(strlen(readBuffer) == 0){
-        strcpy(writeBuffer, "No input received. Operation cancelled.\n");
+        strcpy(writeBuffer, "No input received. Operation cancelled.\nPress 1 to continue..\n");
         write(nsd, writeBuffer, strlen(writeBuffer));
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
@@ -558,11 +566,12 @@ int modify_customer_employee_details(int nsd){
         return modify_employee_details(nsd);
     }
     else{
-        strcpy(writeBuffer, "Invalid choice. Operation cancelled.\n");
+        strcpy(writeBuffer, "Invalid choice. Operation cancelled.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 }
@@ -610,7 +619,7 @@ int modify_employee_details(int nsd){
             found = 1;
 
             // Print Current Details
-            snprintf(writeBuffer, sizeof(writeBuffer), "Current Employee Name is %s\nEnter New Employee Name is ", emp.empName);
+            snprintf(writeBuffer, sizeof(writeBuffer), "Current Employee Name is %s\nEnter New Employee Name : ", emp.empName);
             
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
@@ -647,23 +656,25 @@ int modify_employee_details(int nsd){
     }
 
     if(!found){
-        strcpy(writeBuffer, "Employee ID not found.\n");
+        strcpy(writeBuffer, "Employee ID not found.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
             close(fd);
         }
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
     close(fd);
 
-    strcpy(writeBuffer, "Employee details updated successfully.\n");
+    strcpy(writeBuffer, "Employee details updated successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
         return 0;
     }
+    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
     
     return 1;
 }

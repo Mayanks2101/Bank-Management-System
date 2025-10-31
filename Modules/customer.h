@@ -61,35 +61,35 @@ void customer_handler(int nsd){
             case 1:
                 // View Balance
                 if(viewBalance_handler(nsd, cust.custId) == 0){
-                    strcpy(writeBuffer, "Failed to retrieve balance. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to retrieve balance. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 2:
                 // Deposit
                 if(deposit_handler(nsd, cust.custId) == 0){
-                    strcpy(writeBuffer, "Deposit failed. Please try again.\n");
+                    strcpy(writeBuffer, "Deposit failed. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 3:
                 // Withdraw
                 if(withdraw_handler(nsd, cust.custId) == 0){
-                    strcpy(writeBuffer, "Withdraw failed. Please try again.\n");
+                    strcpy(writeBuffer, "Withdraw failed. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 4:
                 // Money Transfer
                 if(money_transfer_handler(nsd, cust.custId) == 0){
-                    strcpy(writeBuffer, "Money Transfer failed. Please try again.\n");
+                    strcpy(writeBuffer, "Money Transfer failed. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 5:
                 // Apply for a loan
                 if(apply_loan_handler(nsd, cust.accountNumber) == 0){
-                    strcpy(writeBuffer, "Failed to submit Loan Application. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to submit Loan Application. \nPress 1 to continue..\n");
                 }
                 break;
 
@@ -99,21 +99,21 @@ void customer_handler(int nsd){
                     strcpy(writeBuffer, "Password changed successfully.\n");
                 }
                 else {
-                    strcpy(writeBuffer, "Failed to change password. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to change password. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 7:
                 // Add Feedback
                 if(addFeedback_handler(nsd, cust.custId) == 0){
-                    strcpy(writeBuffer, "Failed to add feedback. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to add feedback. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 8:
                 // View Transaction
                 if(view_TransactionHistory(nsd, cust.accountNumber) == 0){
-                    strcpy(writeBuffer, "Failed to retrieve transaction history. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to retrieve transaction history. \nPress 1 to continue..\n");
                 }
                 break;
 
@@ -128,7 +128,7 @@ void customer_handler(int nsd){
                 return;
 
             default:
-                strcpy(writeBuffer, "Invalid choice. Try again.\n");
+                strcpy(writeBuffer, "Invalid choice. \nPress 1 to continue..\n");
                 break;
         }
 
@@ -138,7 +138,7 @@ void customer_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
-            // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
             // printf("received message and length is %d\n", readBytes);
             // printf("Message is %s\n", readBuffer);
         }
@@ -222,13 +222,14 @@ struct Customer authenticate_customer(int nsd)
             if(tempCust.custId == custId && strcmp(tempCust.password, readBuffer) == 0 && tempCust.activeStatus == 1){
                 if(tempCust.isLoggedIn == 1){
                     memset(writeBuffer, 0, BUFF_SIZE);
-                    strcpy(writeBuffer, "Customer already logged in from another session. Press Enter to try again\n");
+                    strcpy(writeBuffer, "Customer already logged in from another session. \nPress 1 to continue..\n");
                     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                     if(writeBytes < 0){
                         perror("Write to client failed");
                         // close(fd);
                         // return cust;
                     }
+                    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
                     unlockFile(fd, 0, 0);
                     close(fd);
@@ -246,14 +247,14 @@ struct Customer authenticate_customer(int nsd)
 
         if(!found){
             memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Invalid Customer ID or Password or Inactive Account. Press Enter to try again\n");
+            strcpy(writeBuffer, "Invalid Customer ID or Password or Inactive Account. \nPress 1 to continue..\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
                 return cust;
             }
 
-            // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
             return cust;
         }
 
@@ -314,11 +315,12 @@ int deposit_handler(int nsd, int custId){
     float amount = atof(readBuffer);
 
     if(amount <= 0){
-        strcpy(writeBuffer, "Invalid amount. Deposit failed.\n");
+        strcpy(writeBuffer, "Invalid amount. Deposit failed.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -349,11 +351,12 @@ int deposit_handler(int nsd, int custId){
 
     close(fd);
 
-    strcpy(writeBuffer, "Amount Deposited successfully.\n");
+    strcpy(writeBuffer, "Amount Deposited successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }
@@ -393,11 +396,12 @@ int withdraw_handler(int nsd, int custId){
     float amount = atof(readBuffer);
 
     if(amount <= 0){
-        strcpy(writeBuffer, "Invalid amount. Withdraw failed.\n");
+        strcpy(writeBuffer, "Invalid amount. Withdraw failed.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -414,11 +418,12 @@ int withdraw_handler(int nsd, int custId){
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
         if(tempCust.custId == custId){
             if(tempCust.balance < amount){
-                strcpy(writeBuffer, "Insufficient balance. Withdraw failed.\n");
+                strcpy(writeBuffer, "Insufficient balance. Withdraw failed.\nPress 1 to continue..\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                 if(writeBytes < 0){
                     perror("Write to client failed");
                 }
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                 close(fd);
                 return 2;
             }
@@ -439,12 +444,12 @@ int withdraw_handler(int nsd, int custId){
 
     close(fd);
 
-    strcpy(writeBuffer, "Amount Withdrawn successfully.\n");
+    strcpy(writeBuffer, "Amount Withdrawn successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     return 1;
 }
 
@@ -502,11 +507,12 @@ int money_transfer_handler(int nsd, int custId){
     float amount = atof(readBuffer);
 
     if(amount <= 0){
-        strcpy(writeBuffer, "Invalid amount.\n");
+        strcpy(writeBuffer, "Invalid amount.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -529,21 +535,23 @@ int money_transfer_handler(int nsd, int custId){
     while(read(fd, &tempCust, sizeof(tempCust)) == sizeof(tempCust)){
         if(tempCust.custId == custId  && tempCust.activeStatus == 1){
             if(tempCust.balance < amount){
-                strcpy(writeBuffer, "Insufficient balance. Transfer failed.\n");
+                strcpy(writeBuffer, "Insufficient balance. Transfer failed.\nPress 1 to continue..\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                 if(writeBytes < 0){
                     perror("Write to client failed");
                 }
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                 close(fd);
                 return 2;
             }
 
             if(tempCust.accountNumber == recAccNo){
-                strcpy(writeBuffer, "Cannot transfer to the same account. Transfer failed.\n");
+                strcpy(writeBuffer, "Cannot transfer to the same account. Transfer failed.\nPress 1 to continue..\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                 if(writeBytes < 0){
                     perror("Write to client failed");
                 }
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                 close(fd);
                 return 2;
             }
@@ -564,11 +572,13 @@ int money_transfer_handler(int nsd, int custId){
     }
 
     if(senderOffset == -1){
-        strcpy(writeBuffer, "Sender account not found or Inactive. Transfer failed.\n");
+        strcpy(writeBuffer, "Sender account not found or Inactive. Transfer failed.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+        close(fd);
         return 2;
     }
 
@@ -592,11 +602,12 @@ int money_transfer_handler(int nsd, int custId){
 
     if(receiverOffset == -1){
         unlockFile(fd, senderOffset, sizeof(tempCust));
-        strcpy(writeBuffer, "Recipient account not found or Inactive. Transfer failed.\n");
+        strcpy(writeBuffer, "Recipient account not found or Inactive. Transfer failed.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
         // Revert Sender Balance Update
         lseek(fd, 0, SEEK_SET);
@@ -629,11 +640,12 @@ int money_transfer_handler(int nsd, int custId){
 
     close(fd);
 
-    strcpy(writeBuffer, "Amount Transferred successfully.\n");
+    strcpy(writeBuffer, "Amount Transferred successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }
@@ -718,8 +730,8 @@ int add_transaction_entry(int acc_no, int txnID, const char* txnType, float amou
 
 int view_TransactionHistory(int nsd, int acc_no)
 {
-    char writeBuffer[BUFF_SIZE];
-    int writeBytes;
+    char writeBuffer[BUFF_SIZE], readBuffer[BUFF_SIZE];
+    int writeBytes, readBytes;
 
     struct TransactionHistory accounts;
 
@@ -747,17 +759,19 @@ int view_TransactionHistory(int nsd, int acc_no)
     close(fd);
 
     if(!found){
-        strcpy(writeBuffer, "No transaction history found for your account.\n");
+        strcpy(writeBuffer, "No transaction history found for your account.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
     // Send Transaction History to Customer
     strcpy(writeBuffer, "===== Transaction History =====\n");
     strcat(writeBuffer, accounts.history);
+    strcat(writeBuffer, "\nPress 1 to continue..\n");
 
     printf("Account No : %d, History : %s", accounts.acc_no, accounts.history);
     
@@ -766,6 +780,7 @@ int view_TransactionHistory(int nsd, int acc_no)
         perror("Write to client failed");
         return 0;
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }
@@ -814,12 +829,12 @@ int addFeedback_handler(int nsd, int custId){
 
     close(fd);
 
-    strcpy(writeBuffer, "Feedback Submitted successfully.\n");
+    strcpy(writeBuffer, "Feedback Submitted successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     return 1;
 }
 
@@ -852,11 +867,12 @@ int apply_loan_handler(int nsd, int accNo){
     float loanAmount = atof(readBuffer);
 
     if(loanAmount <= 0){
-        strcpy(writeBuffer, "Invalid loan amount. Application failed.\n");
+        strcpy(writeBuffer, "Invalid loan amount. Application failed.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -880,11 +896,12 @@ int apply_loan_handler(int nsd, int accNo){
     write(fd, &loanApp, sizeof(loanApp));
     unlockFile(fd, 0, 0);
 
-    strcpy(writeBuffer, "Loan Application Submitted successfully.\n");
+    strcpy(writeBuffer, "Loan Application Submitted successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     close(fd);
 
     return 1;
@@ -921,18 +938,19 @@ struct Customer fetchCustomer(int custId){
 }
 
 int viewBalance_handler(int nsd, int custId){
-    char writeBuffer[BUFF_SIZE];
-    int writeBytes;
+    char writeBuffer[BUFF_SIZE], readBuffer[BUFF_SIZE];
+    int writeBytes, readBytes;
 
     struct Customer cust = fetchCustomer(custId);
 
     snprintf(writeBuffer, sizeof(writeBuffer), "Your current balance is: %.2f\n", cust.balance);
-
+    strcat(writeBuffer, "\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
         return 0;
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }

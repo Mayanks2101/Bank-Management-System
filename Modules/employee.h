@@ -65,35 +65,35 @@ void employee_handler(int nsd){
             case 1:
                 // Add New Customer
                 if(add_new_customer(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to add New Customer. Try Again.\n");
+                    strcpy(writeBuffer, "Failed to add New Customer. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 2:
                 // Modify Customer Details
                 if(modify_customer_details(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to modify Customer details. Try Again.\n");
+                    strcpy(writeBuffer, "Failed to modify Customer details. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 3:
                 // Approve/Reject Loans
                 if(approve_reject_loans(nsd, emp.empID) == 0){
-                    strcpy(writeBuffer, "Failed to process Loan Application. Try Again.\n");
+                    strcpy(writeBuffer, "Failed to process Loan Application. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 4:
                 // View Assigned Loan Applications
                 if(view_assigned_loan_applications(nsd, emp.empID) == 0){
-                    strcpy(writeBuffer, "Failed to retrieve Assigned Loan Applications. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to retrieve Assigned Loan Applications. Please \nPress 1 to continue..\n");
                 }
                 break;
 
             case 5:
                 // View Customer Transactions
                 if(view_customer_transactions(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to retrieve Customer Transactions. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to retrieve Customer Transactions. Please \nPress 1 to continue..\n");
                 }
                 break;
 
@@ -103,7 +103,7 @@ void employee_handler(int nsd){
                     strcpy(writeBuffer, "Password changed successfully.\n");
                 }
                 else {
-                    strcpy(writeBuffer, "Failed to change password. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to change password. Please \nPress 1 to continue..\n");
                 }
                 break;
 
@@ -118,7 +118,7 @@ void employee_handler(int nsd){
                 return;
 
             default:
-                strcpy(writeBuffer, "Invalid choice. Try again.\n");
+                strcpy(writeBuffer, "Invalid choice. \nPress 1 to continue..\n");
         }
         
         if(strlen(writeBuffer) > 0){
@@ -127,6 +127,7 @@ void employee_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         }
 
     }
@@ -205,13 +206,14 @@ struct Employee authenticate_employee(int nsd)
             if(tempEmp.empID == empId && strcmp(tempEmp.password, readBuffer) == 0 && tempEmp.role == 1){
                 if(tempEmp.isLoggedIn){
                     // Already logged in
-                    strcpy(writeBuffer, "This Employee is already logged in from another session. Press Enter to try again\n");
+                    strcpy(writeBuffer, "This Employee is already logged in from another session. \nPress 1 to continue..\n");
                     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                     if(writeBytes < 0){
                         perror("Write to client failed");
                         close(fd);
                         return emp;
                     }
+                    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                     unlockFile(fd, 0, 0);
                     close(fd);
                     // read(nsd, readBuffer, sizeof(readBuffer)); // Wait for Enter
@@ -226,12 +228,13 @@ struct Employee authenticate_employee(int nsd)
         close(fd);
 
         if(!found){
-            strcpy(writeBuffer, "Invalid Employee ID or Password. Try again.\n");
+            strcpy(writeBuffer, "Invalid Employee ID or Password. \nPress 1 to continue..\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
                 return emp;
             }
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
             return emp;
         }
 
@@ -346,11 +349,12 @@ int add_new_customer(int nsd){
 
     close(fd);
 
-    sprintf(writeBuffer, "New Customer added successfully. Customer ID is %d, Account Number is %d\n", custId, accNo);
+    sprintf(writeBuffer, "New Customer added successfully. Customer ID is %d, Account Number is %d \nPress 1 to continue..\n", custId, accNo);
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }
@@ -405,11 +409,12 @@ int approve_reject_loans(int nsd, int empId){
 
 
     if(strlen(pendingLoanIds) == 0){
-        strcpy(writeBuffer, "No pending loan applications assigned to you.\n");
+        strcpy(writeBuffer, "No pending loan applications assigned to you.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         close(fdLoans);
         return 2;
     }
@@ -442,11 +447,12 @@ int approve_reject_loans(int nsd, int empId){
 
     int loanId = atoi(readBuffer);
     if(loanId <= 0){
-        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled. Press Enter to continue\n");
+        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled. \nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         close(fdLoans);
         return 2;
     }
@@ -498,12 +504,12 @@ int approve_reject_loans(int nsd, int empId){
             }
             else{
                 memset(writeBuffer, 0, BUFF_SIZE);
-                strcpy(writeBuffer, "Invalid choice. Operation cancelled. Press Enter to continue\n");
+                strcpy(writeBuffer, "Invalid choice. Operation cancelled. \nPress 1 to continue..\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                 if(writeBytes < 0){
                     perror("Write to client failed");
                 }
-                
+                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
                 unlockFile(fdLoans, 0, 0);
                 close(fdLoans);
                 return 2;
@@ -545,11 +551,12 @@ int approve_reject_loans(int nsd, int empId){
             close(fdLoans);
 
             memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Loan application processed successfully.\n");
+            strcpy(writeBuffer, "Loan application processed successfully.\nPress 1 to continue..\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
             }
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
             
             return 1;
         }
@@ -558,11 +565,12 @@ int approve_reject_loans(int nsd, int empId){
     close(fdLoans);
     if(!found){
         memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "No matching pending loan application found. Operation cancelled. Press Enter to continue\n");
+        strcpy(writeBuffer, "No matching pending loan application found. Operation cancelled. \nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
@@ -602,23 +610,25 @@ int view_assigned_loan_applications(int nsd, int empId){
     close(fdLoans);
 
     if(strlen(assignedLoanIds) == 0){
-        strcpy(writeBuffer, "No loan applications assigned to you.\n");
+        strcpy(writeBuffer, "No loan applications assigned to you.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
     // Send Assigned Loan Applications to Employee
     strcpy(writeBuffer, "All Loan Applications assigned to you are - \n");
     strcat(writeBuffer, assignedLoanIds);
+    strcat(writeBuffer, "\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
         return 0;
     }
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     
     return 1;
 }
@@ -670,10 +680,12 @@ int view_customer_transactions(int nsd){
             found = 1;
         }
     }
+    strcat(allTransactions, "=================================\nPress 1 to continue..\n");
+
     unlockFile(fdTrans, 0, 0);
 
     if(!found){
-        strcat(allTransactions, "No transactions found for this account number.\n");
+        strcat(allTransactions, "No transactions found for this account number.\nPress 1 to continue..\n");
     }
 
     // Send All Transactions to Employee
@@ -683,7 +695,7 @@ int view_customer_transactions(int nsd){
         close(fdTrans);
         return 0;
     }
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     close(fdTrans);
     return 1;
 }
@@ -766,21 +778,23 @@ int modify_customer_details(int nsd){
     close(fd);
 
     if(!found){
-        strcpy(writeBuffer, "Customer ID not found.\n");
+        strcpy(writeBuffer, "Customer ID not found.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
             return 0;
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
-    strcpy(writeBuffer, "Customer details updated successfully.\n");
+    strcpy(writeBuffer, "Customer details updated successfully.\nPress 1 to continue..\n");
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
         return 0;
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
 
     return 1;
 }

@@ -54,31 +54,31 @@ void manager_handler(int nsd){
             case 1:
                 // Activate/Deactivate Customer Accounts
                 if(activate_deactivate_customer_accounts(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to change Customer account status. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to change Customer account status. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 2:
                 // Assign Loan Application Processes to Employees
                 if(assign_loan_applications(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to assign Loan Applications. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to assign Loan Applications. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 3:
                 // Review Customer Feedback
                 if(review_customer_feedback(nsd) == 0){
-                    strcpy(writeBuffer, "Failed to retrieve Customer Feedbacks.\n");
+                    strcpy(writeBuffer, "Failed to retrieve Customer Feedbacks. \nPress 1 to continue..\n");
                 }
                 break;
 
             case 4:
                 // Change Password
                 if(change_password(nsd, "EMPLOYEE", manager.empID)){
-                    strcpy(writeBuffer, "Password changed successfully.\n");
+                    strcpy(writeBuffer, "Password changed successfully.\nPress 1 to continue..\n");
                 }
                 else {
-                    strcpy(writeBuffer, "Failed to change password. Please try again.\n");
+                    strcpy(writeBuffer, "Failed to change password. \nPress 1 to continue..\n");
                 }
                 break;
 
@@ -93,7 +93,7 @@ void manager_handler(int nsd){
                 return;
 
             default:
-                strcpy(writeBuffer, "Invalid choice. Try again.\n");
+                strcpy(writeBuffer, "Invalid choice. \nPress 1 to continue..\n");
                 break;
         }
 
@@ -103,6 +103,7 @@ void manager_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
+            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         }
 
     }
@@ -182,11 +183,12 @@ struct Employee authenticate_manager(int nsd)
         while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
             if(tempEmp.empID == empId && strcmp(tempEmp.password, readBuffer) == 0 && tempEmp.role == 0){
                 if(tempEmp.isLoggedIn){
-                    strcpy(writeBuffer, "This Manager is already logged in from another session. Press Enter to try again.\n");
+                    strcpy(writeBuffer, "This Manager is already logged in from another session. \nPress 1 to continue..\n");
                     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                     if(writeBytes < 0){
                         perror("Write to client failed");
                     }
+                    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
                     unlockFile(fd, 0, 0);
                     close(fd);
                     // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
@@ -202,12 +204,13 @@ struct Employee authenticate_manager(int nsd)
 
         if(!found){
             memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Invalid Manager ID or Password. Try Again.\n");
+            strcpy(writeBuffer, "Invalid Manager ID or Password. \nPress 1 to continue..\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
                 return emp;
             }
+            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
             return emp;
         }
 
@@ -320,10 +323,10 @@ int activate_deactivate_customer_accounts(int nsd){
 
                 lseek(fd, - sizeof(cust), SEEK_CUR);
                 write(fd, &cust, sizeof(cust));
-                strcpy(writeBuffer, "Customer account status updated successfully.\n");
+                strcpy(writeBuffer, "Customer account status updated successfully.\nPress 1 to continue..\n");
             }
             else {
-                strcpy(writeBuffer, "Operation cancelled by manager.\n");
+                strcpy(writeBuffer, "Operation cancelled by manager.\nPress 1 to continue..\n");
             }
 
             unlockFile(fd, offset, sizeof(cust));
@@ -334,11 +337,12 @@ int activate_deactivate_customer_accounts(int nsd){
     close(fd);
 
     if(!found){
-        strcpy(writeBuffer, "Customer ID not found.\n");
+        strcpy(writeBuffer, "Customer ID not found.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
@@ -346,7 +350,7 @@ int activate_deactivate_customer_accounts(int nsd){
     if(writeBytes < 0){
         perror("Write to client failed");
     }
-
+    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
     return 1;
 }
 
@@ -373,12 +377,13 @@ int review_customer_feedback(int nsd){
         strcat(writeBuffer, feedbackEntry);
         feedbackCount++;
     }
+    strcat(writeBuffer, "==============================\nPress 1 to continue..\n");
     unlockFile(fd, 0, 0);
 
     close(fd);
 
     if(feedbackCount == 0){
-        strcpy(writeBuffer, "No customer feedback available.\n");
+        strcpy(writeBuffer, "No customer feedback available.\nPress 1 to continue..\n");
     }
 
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
@@ -386,7 +391,7 @@ int review_customer_feedback(int nsd){
         perror("Write to client failed");
         return 0;
     }
-
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     return 1;
 }
 
@@ -417,11 +422,12 @@ int assign_loan_applications(int nsd){
     unlockFile(fdLoans, 0, 0);
 
     if(strlen(unassignedLoanIds) == 0){
-        strcpy(writeBuffer, "No unassigned loan applications available.\n");
+        strcpy(writeBuffer, "No unassigned loan applications available.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         close(fdLoans);
         return 2;
     }
@@ -499,11 +505,12 @@ int assign_loan_applications(int nsd){
     close(fdEmp);
 
     if(!empFound){
-        strcpy(writeBuffer, "Invalid Employee ID. Operation cancelled. Press Enter to continue.\n");
+        strcpy(writeBuffer, "Invalid Employee ID. Operation cancelled. \nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         close(fdLoans);
         return 2;
     }
@@ -528,19 +535,21 @@ int assign_loan_applications(int nsd){
     close(fdLoans);
 
     if(!found){
-        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled. Press Enter to continue.\n");
+        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled.\nPress 1 to continue..\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
         }
+        readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
         return 2;
     }
 
-    sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\n", loanId, empId);
+    sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\nPress 1 to continue..\n", loanId, empId);
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
     if(writeBytes < 0){
         perror("Write to client failed");
         close(fdLoans);
     }
+    readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
     return 1;
 }
