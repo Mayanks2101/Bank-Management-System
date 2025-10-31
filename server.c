@@ -91,6 +91,24 @@ int main()
 	return 0;
 }
 
+void trim(char *str) {
+    // Remove trailing newline and spaces
+    str[strcspn(str, "\r\n")] = 0;
+
+    // Remove leading spaces
+    char *start = str;
+    while (*start == ' ') start++;
+
+    // Shift string left
+    if (start != str)
+        memmove(str, start, strlen(start) + 1);
+
+    // Remove trailing spaces
+    int end = strlen(str) - 1;
+    while (end >= 0 && str[end] == ' ') str[end--] = 0;
+}
+
+
 void handle_client(int nsd)
 {
 	char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
@@ -108,6 +126,7 @@ void handle_client(int nsd)
 
 			memset(readBuffer, 0, BUFF_SIZE);
 			readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+			trim(readBuffer);
 			if(readBytes < 0)
 			{
 				perror("Read from client failed");
@@ -150,7 +169,10 @@ void handle_client(int nsd)
 					return;
 
 				default:
-					printf("Invalid Choice from Client. Please Try Again. \n");
+					strcpy(writeBuffer, "Invalid choice. Please try again.\n");
+					// Send error message to client
+					write(nsd, writeBuffer, strlen(writeBuffer));
+					// readBytes = read(nsd, readBuffer, sizeof(readBuffer));
 					break;
 				}
 			}

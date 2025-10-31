@@ -48,6 +48,7 @@ Enter your choice: "
 Enter your choice: "
 
 #define MANAGE_USERROLES_MENU "\n===== Manage User Roles =====\n1. Promote Employee to Manager\n\
-2. Demote Manager to Employee\n\n\
+2. Demote Manager to Employee\n\
+3. Back to Main menu\n\
 Enter your choice: "
 

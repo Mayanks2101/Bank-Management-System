@@ -19,11 +19,11 @@ void customer_handler(int nsd){
 
     cust = authenticate_customer(nsd);
     if(cust.custId == -1){
-        strcpy(writeBuffer, "Customer authentication failed.\n");
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-        }
+        // strcpy(writeBuffer, "Customer authentication failed.\n");
+        // writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        // if(writeBytes < 0){
+        //     perror("Write to client failed");
+        // }
         return;
     }
     printf("Customer %s (ID: %d) authenticated successfully.\n", cust.custName, cust.custId);
@@ -138,9 +138,9 @@ void customer_handler(int nsd){
                 perror("Write to client failed");
                 return;
             }
-            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
-            printf("received message and length is %d\n", readBytes);
-            printf("Message is %s\n", readBuffer);
+            // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+            // printf("received message and length is %d\n", readBytes);
+            // printf("Message is %s\n", readBuffer);
         }
     }
 }
@@ -155,7 +155,8 @@ struct Customer authenticate_customer(int nsd)
     int auth = 0;
 
     // Authentication
-    while(!auth){
+    // while(!auth){
+    memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Enter Customer ID: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -174,12 +175,14 @@ struct Customer authenticate_customer(int nsd)
         
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
-            continue;
+            printf("Read buffer empty\n");
+            return cust;
         }
 
         int custId = atoi(readBuffer);
 
         // Prompt for Customer Password
+        memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Enter Customer Password: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -198,7 +201,8 @@ struct Customer authenticate_customer(int nsd)
         
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
-            continue;
+            printf("Read buffer empty\n");
+            return cust;
         }
 
         // Open Customer Database
@@ -217,17 +221,18 @@ struct Customer authenticate_customer(int nsd)
             tempCust.password[sizeof(tempCust.password) - 1] = '\0'; // Ensure null-termination
             if(tempCust.custId == custId && strcmp(tempCust.password, readBuffer) == 0 && tempCust.activeStatus == 1){
                 if(tempCust.isLoggedIn == 1){
+                    memset(writeBuffer, 0, BUFF_SIZE);
                     strcpy(writeBuffer, "Customer already logged in from another session. Press Enter to try again\n");
                     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                     if(writeBytes < 0){
                         perror("Write to client failed");
-                        close(fd);
-                        return cust;
+                        // close(fd);
+                        // return cust;
                     }
 
                     unlockFile(fd, 0, 0);
                     close(fd);
-                    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+                    // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
                     return cust;
                 }
 
@@ -240,6 +245,7 @@ struct Customer authenticate_customer(int nsd)
         close(fd);
 
         if(!found){
+            memset(writeBuffer, 0, BUFF_SIZE);
             strcpy(writeBuffer, "Invalid Customer ID or Password or Inactive Account. Press Enter to try again\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
@@ -247,8 +253,8 @@ struct Customer authenticate_customer(int nsd)
                 return cust;
             }
 
-            readBytes = read(nsd, readBuffer, sizeof(readBuffer));
-            continue;
+            // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+            return cust;
         }
 
         // Mark Customer as Logged In
@@ -273,9 +279,9 @@ struct Customer authenticate_customer(int nsd)
         unlockFile(fd, 0, 0);
         close(fd);
 
-        auth = 1;
+    //     auth = 1;
 
-    }
+    // }
     return cust;
 }
 
@@ -375,13 +381,13 @@ int withdraw_handler(int nsd, int custId){
         
     readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
     if(strlen(readBuffer) == 0){
-        strcpy(writeBuffer, "Invalid amount. Withdraw failed.\n");
+        // strcpy(writeBuffer, "Invalid amount. Withdraw failed.\n");
 
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-        }
-        return 2;
+        // writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        // if(writeBytes < 0){
+        //     perror("Write to client failed");
+        // }
+        return 0;
     }
 
     float amount = atof(readBuffer);

@@ -13,11 +13,11 @@ void manager_handler(int nsd){
 
     manager = authenticate_manager(nsd);
     if(manager.empID == -1){
-        strcpy(writeBuffer, "Manager authentication failed.\n");
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-        }
+        // strcpy(writeBuffer, "Manager authentication failed.\n");
+        // writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        // if(writeBytes < 0){
+        //     perror("Write to client failed");
+        // }
         return;
     }
     // Manager Menu Loop
@@ -115,10 +115,11 @@ struct Employee authenticate_manager(int nsd)
     struct Employee emp;
     emp.empID = -1; // Default to invalid
 
-    int auth = 0;
+    // int auth = 0;
 
-    // Authentication
-    while(!auth){
+    // // Authentication
+    // while(!auth){
+    memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Enter Manager ID: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -137,12 +138,14 @@ struct Employee authenticate_manager(int nsd)
     
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
+            printf("Read buffer empty\n");
             return emp;
         }
 
         int empId = atoi(readBuffer);
 
         // Prompt for Employee Password
+        memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Enter Employee Password: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -186,7 +189,7 @@ struct Employee authenticate_manager(int nsd)
                     }
                     unlockFile(fd, 0, 0);
                     close(fd);
-                    readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+                    // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
                     return emp;
                 }
                 emp = tempEmp;
@@ -198,13 +201,14 @@ struct Employee authenticate_manager(int nsd)
         close(fd);
 
         if(!found){
+            memset(writeBuffer, 0, BUFF_SIZE);
             strcpy(writeBuffer, "Invalid Manager ID or Password. Try Again.\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
                 return emp;
             }
-            continue;
+            return emp;
         }
 
         //Mark as logged in
@@ -228,9 +232,9 @@ struct Employee authenticate_manager(int nsd)
         unlockFile(fd, 0, 0);
         close(fd);
 
-        auth = 1;
+    //     auth = 1;
 
-    }
+    // }
     return emp;
 }
 
@@ -475,24 +479,62 @@ int assign_loan_applications(int nsd){
 
     int empId = atoi(readBuffer);
 
+    // Validate Employee ID
+    int fdEmp = open(EMPLOYEES_DB, O_RDONLY);
+    if(fdEmp < 0){
+        perror("Failed to open employee database");
+        close(fdLoans);
+        return 0;
+    }
+    struct  Employee emp;
+    int empFound = 0;
+    lockFile(fdEmp, F_RDLCK, 0, 0);
+    while(read(fdEmp, &emp, sizeof(emp)) == sizeof(emp)){
+        if(emp.empID ==  empId && emp.role == 1){
+            empFound = 1;
+            break;
+        }
+    }
+    unlockFile(fdEmp, 0, 0);
+    close(fdEmp);
+
+    if(!empFound){
+        strcpy(writeBuffer, "Invalid Employee ID. Operation cancelled. Press Enter to continue.\n");
+        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        if(writeBytes < 0){
+            perror("Write to client failed");
+        }
+        close(fdLoans);
+        return 2;
+    }
+
     // Reset file pointer to beginning
     lockFile(fdLoans, F_WRLCK, 0, 0);
 
     lseek(fdLoans, 0, SEEK_SET);
-
+    int found = 0;
+    // Assign the specified Loan Application
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
         if(loanApp.loanID == loanId && loanApp.empID == -1){
             loanApp.empID = empId;
             loanApp.status = 1; // Assigned to Employee
-
+            found = 1;
             // Move file pointer back to overwrite
             lseek(fdLoans, - sizeof(loanApp), SEEK_CUR);
             write(fdLoans, &loanApp, sizeof(loanApp));
         }
     }
-
     unlockFile(fdLoans, 0, 0);
     close(fdLoans);
+
+    if(!found){
+        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled. Press Enter to continue.\n");
+        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        if(writeBytes < 0){
+            perror("Write to client failed");
+        }
+        return 2;
+    }
 
     sprintf(writeBuffer, "Assigned loan application %d to Employee ID %d.\n", loanId, empId);
     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));

@@ -22,12 +22,12 @@ void employee_handler(int nsd){
 
     emp = authenticate_employee(nsd);
     if(emp.empID == -1){
-        strcpy(writeBuffer, "Authentication Failed. Disconnecting...\n");
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-        }
-        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+        // strcpy(writeBuffer, "Authentication Failed. Disconnecting...\n");
+        // writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        // if(writeBytes < 0){
+        //     perror("Write to client failed");
+        // }
+        // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return;
     }
 
@@ -142,8 +142,9 @@ struct Employee authenticate_employee(int nsd)
     int auth = 0;
 
     // Authentication
-    while(!auth){
-        strcpy(writeBuffer, "Enter Employee ID: ");
+    // while(!auth){
+    memset(writeBuffer, 0, BUFF_SIZE);
+    strcpy(writeBuffer, "Enter Employee ID: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
@@ -161,12 +162,14 @@ struct Employee authenticate_employee(int nsd)
         
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
+            printf("Read buffer empty\n");
             return emp;
         }
 
         int empId = atoi(readBuffer);
 
         // Prompt for Employee Password
+        memset(writeBuffer, 0, BUFF_SIZE);
         strcpy(writeBuffer, "Enter Employee Password: ");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
@@ -206,10 +209,12 @@ struct Employee authenticate_employee(int nsd)
                     writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                     if(writeBytes < 0){
                         perror("Write to client failed");
+                        close(fd);
+                        return emp;
                     }
                     unlockFile(fd, 0, 0);
                     close(fd);
-                    read(nsd, readBuffer, sizeof(readBuffer)); // Wait for Enter
+                    // read(nsd, readBuffer, sizeof(readBuffer)); // Wait for Enter
                     return emp;
                 }
                 emp = tempEmp;
@@ -225,8 +230,9 @@ struct Employee authenticate_employee(int nsd)
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
+                return emp;
             }
-            continue;
+            return emp;
         }
 
         //Mark Employee as Logged In
@@ -237,8 +243,8 @@ struct Employee authenticate_employee(int nsd)
         }
 
         // Mark Employee as Logged In
-        off_t offset = lseek(fd, -sizeof(emp), SEEK_CUR);
-        lockFile(fd, F_WRLCK, offset, sizeof(emp));
+        off_t offset = lseek(fd, 0, SEEK_SET);
+        lockFile(fd, F_WRLCK, 0, 0);
 
         while(read(fd, &tempEmp, sizeof(tempEmp)) == sizeof(tempEmp)){
             if(tempEmp.empID == emp.empID){
@@ -253,8 +259,8 @@ struct Employee authenticate_employee(int nsd)
         unlockFile(fd, offset, sizeof(emp));
         close(fd);
 
-        auth = 1; // Successful authentication
-    }
+    //     auth = 1; // Successful authentication
+    // }
     return emp;
 }
 
@@ -435,15 +441,26 @@ int approve_reject_loans(int nsd, int empId){
     }
 
     int loanId = atoi(readBuffer);
-
+    if(loanId <= 0){
+        strcpy(writeBuffer, "Invalid Loan ID. Operation cancelled. Press Enter to continue\n");
+        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        if(writeBytes < 0){
+            perror("Write to client failed");
+        }
+        close(fdLoans);
+        return 2;
+    }
     // Reset file pointer to beginning
     lseek(fdLoans, 0, SEEK_SET);
 
+    int found = 0;
     // Process the specified Loan Application
     while(read(fdLoans, &loanApp, sizeof(loanApp)) == sizeof(loanApp)){
         if(loanApp.loanID == loanId && loanApp.empID == empId && loanApp.status == 1){
+            found = 1;
+            memset(writeBuffer, 0, BUFF_SIZE);
             // Prompt for Approval/Rejection
-            strcpy(writeBuffer, "\n1 .Approve\n2. Reject the loan\nEnter your choice: ");
+            strcpy(writeBuffer, "\n1 .Approve\n2. Reject the loan\n3. Go Back to Main Menu\nEnter your choice: ");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
@@ -480,6 +497,7 @@ int approve_reject_loans(int nsd, int empId){
                 loanApp.status = 3; // Rejected
             }
             else{
+                memset(writeBuffer, 0, BUFF_SIZE);
                 strcpy(writeBuffer, "Invalid choice. Operation cancelled. Press Enter to continue\n");
                 writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
                 if(writeBytes < 0){
@@ -490,8 +508,6 @@ int approve_reject_loans(int nsd, int empId){
                 close(fdLoans);
                 return 2;
             }
-
-            // Move file pointer back to overwrite
 
             write(fdLoans, &loanApp, sizeof(loanApp));
             unlockFile(fdLoans, offset, sizeof(loanApp));
@@ -528,6 +544,7 @@ int approve_reject_loans(int nsd, int empId){
 
             close(fdLoans);
 
+            memset(writeBuffer, 0, BUFF_SIZE);
             strcpy(writeBuffer, "Loan application processed successfully.\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
@@ -537,7 +554,18 @@ int approve_reject_loans(int nsd, int empId){
             return 1;
         }
     }
+
     close(fdLoans);
+    if(!found){
+        memset(writeBuffer, 0, BUFF_SIZE);
+        strcpy(writeBuffer, "No matching pending loan application found. Operation cancelled. Press Enter to continue\n");
+        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        if(writeBytes < 0){
+            perror("Write to client failed");
+        }
+        return 2;
+    }
+
     return 1;
 }
 

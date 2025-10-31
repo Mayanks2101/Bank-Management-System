@@ -5,6 +5,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 
 #define BUFF_SIZE 4096
 
@@ -59,6 +61,7 @@ void handle_connection(int sd)
 
     while (1)
     {
+        memset(writeBuffer, 0, BUFF_SIZE);
         memset(readBuffer, 0, BUFF_SIZE);
         readBytes = read(sd, readBuffer, sizeof(readBuffer));
         if(readBytes < 0)
@@ -98,27 +101,53 @@ void handle_connection(int sd)
             }
             else{
                 printf("%s", readBuffer);
+                tcflush(STDIN_FILENO, TCIFLUSH);
                 // fgets() keeps the newline automatically.
                 // It won’t leave garbage in stdin.
                 // It won’t double \n.
                 // while (1) {
-                memset(writeBuffer, 0, BUFF_SIZE);
-                fgets(writeBuffer, sizeof(writeBuffer), stdin);
+                // memset(writeBuffer, 0, BUFF_SIZE);
+                // fgets(writeBuffer, sizeof(writeBuffer), stdin);
                 // writeBuffer[strcspn(writeBuffer, "\n")] = '\0';
 
-                    // if (strlen(writeBuffer) == 0) {
-                    //     printf("Input cannot be empty. Please enter a value: ");
-                    //     continue;
-                    // }
-                    // break;
+                // if (strlen(writeBuffer) == 0) {
+                //     printf("Input cannot be empty. Please enter a value: ");
+                //     // continue;
                 // }
-            }
 
-            writeBytes = write(sd, writeBuffer, strlen(writeBuffer));
-            if(writeBytes < 0)
-            {
-                perror("Write to server failed");
-                break;
+                while (1) {
+                    memset(writeBuffer, 0, BUFF_SIZE);
+                    fflush(stdout);
+                    
+                    // int pending = 0;
+                    // ioctl(STDIN_FILENO, FIONREAD, &pending);
+                    // if (pending == 0) {
+                    //     // No input available, prompt user
+                    //     tcflush(STDIN_FILENO, TCIFLUSH);
+                    // }
+                    // Read safely
+                    if (fgets(writeBuffer, sizeof(writeBuffer), stdin) == NULL)
+                        continue; // CTRL+D or input issue, just retry
+
+                    // Remove newline
+                    writeBuffer[strcspn(writeBuffer, "\n")] = '\0';
+
+                    // Ignore only empty input
+                    if (writeBuffer[0] == '\0')
+                        continue;
+
+                    // valid input → break input loop
+                    break;
+                }
+                
+            }
+            if(strlen(writeBuffer) > 0){
+                writeBytes = write(sd, writeBuffer, strlen(writeBuffer));
+                if(writeBytes < 0)
+                {
+                    perror("Write to server failed");
+                    break;
+                }
             }
         }
     }

@@ -14,12 +14,12 @@ void admin_handler(int nsd){
 
     int auth = authenticate_admin(nsd);
     if(auth == 0){
-        memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "Admin authentication failed.\n");
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-        }
+        // memset(writeBuffer, 0, BUFF_SIZE);
+        // strcpy(writeBuffer, "Admin authentication failed.\n");
+        // writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+        // if(writeBytes < 0){
+        //     perror("Write to client failed");
+        // }
         return; // Authentication failed
     }
     else if(auth == 2){
@@ -108,120 +108,119 @@ void admin_handler(int nsd){
 int authenticate_admin(int nsd){
     char readBuffer[BUFF_SIZE], writeBuffer[BUFF_SIZE];
     int readBytes, writeBytes;
-    int auth = 0;
 
-    // Authentication
-    while(!auth){
+    char adminName[BUFF_SIZE], adminPass[BUFF_SIZE];
+
+    memset(writeBuffer, 0, BUFF_SIZE);
+    strcpy(writeBuffer, "Enter Admin Name: ");
+    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+    if(writeBytes < 0){
+        perror("Write to client failed");
+        return 0;
+    }
+
+    // Read Admin Username
+    memset(adminName, 0, BUFF_SIZE);
+    readBytes = read(nsd, adminName, BUFF_SIZE);
+    if(readBytes < 0){
+        perror("Read from client failed");
+        return 0;
+    }
+    adminName[readBytes] = '\0'; // Null-terminate
+
+    adminName[strcspn(adminName, "\n")] = '\0'; // Remove newline
+    if(strlen(adminName) == 0){
+        printf("Read buffer empty\n");
+        return 0;
+    }
+    
+    // Prompt for Admin Password
+    memset(writeBuffer, 0, BUFF_SIZE);
+    strcpy(writeBuffer, "Enter Admin Password: ");
+    writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
+    if(writeBytes < 0){
+        perror("Write to client failed");
+        return 0;
+    }
+    
+    // Read Admin Password
+    memset(adminPass, 0, BUFF_SIZE);
+    readBytes = read(nsd, adminPass, BUFF_SIZE);
+    if(readBytes < 0){
+        perror("Read from client failed");
+        return 0;
+    }
+    adminPass[readBytes] = '\0'; // Null-terminate
+
+    adminPass[strcspn(adminPass, "\n")] = '\0'; // Remove newline
+    if(strlen(adminPass) == 0){
+        printf("Read buffer empty\n");
+        return 0;
+    }
+    
+    // Check Admin Name
+    if(strcmp(adminName, ADMINNAME) != 0){
         memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "Enter Admin Name: ");
+        strcpy(writeBuffer, "Invalid Admin Name. Try again.\n");
         writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
         if(writeBytes < 0){
             perror("Write to client failed");
             return 0;
         }
+        // readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+        return 2;
+    }
 
-        // Read Admin ID
-        memset(readBuffer, 0, BUFF_SIZE);
-        readBytes = read(nsd, readBuffer, BUFF_SIZE);
-        if(readBytes < 0){
-            perror("Read from client failed");
+    // Check Admin Password
+    if(strcmp(adminPass, ADMINPASS) != 0){
+        memset(writeBuffer, 0, BUFF_SIZE);
+        strcpy(writeBuffer, "Invalid Admin Password. Try again.\n");
+        writeBytes = write(nsd, writeBuffer, BUFF_SIZE);
+        if(writeBytes < 0){
+            perror("Write to client failed");
             return 0;
         }
-        readBuffer[readBytes] = '\0'; // Null-terminate
-    
-        readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
-        if(strlen(readBuffer) == 0){
-            return 0;
-        }
+        return 2;
+    }
 
-        // Check Admin Name
-        if(strcmp(readBuffer, ADMINNAME) != 0){
+    // Check if Admin is already logged in
+    int fd = open(ADMIN_LOCK_DB, O_RDWR | O_CREAT, 0644);
+    if(fd < 0){
+        perror("Failed to open admin lock database");
+        return 0;
+    }
+    int isLoggedIn;
+    lockFile(fd, F_WRLCK, 0, 0);
+
+    off_t size = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
+
+    if(size >= sizeof(isLoggedIn)){
+        lseek(fd, 0, SEEK_SET);
+        read(fd, &isLoggedIn, sizeof(isLoggedIn));
+        if(isLoggedIn){
             memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Invalid Admin Name. Try again.\n");
+            strcpy(writeBuffer, "Admin already logged in from another session. Press Enter to Continue.\n");
             writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
             if(writeBytes < 0){
                 perror("Write to client failed");
-                return 0;
-            }
-            readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
-            continue;
-        }
-
-        // Prompt for Admin Password
-        memset(writeBuffer, 0, BUFF_SIZE);
-        strcpy(writeBuffer, "Enter Admin Password: ");
-        writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-        if(writeBytes < 0){
-            perror("Write to client failed");
-            return 0;
-        }
-
-        // Read Admin Password
-        memset(readBuffer, 0, BUFF_SIZE);
-        readBytes = read(nsd, readBuffer, BUFF_SIZE);
-        if(readBytes < 0){
-            perror("Read from client failed");
-            return 0;
-        }
-        readBuffer[readBytes] = '\0'; // Null-terminate
-    
-        readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
-        if(strlen(readBuffer) == 0){
-            return 0;
-        }
-
-        // Check Admin Password
-        if(strcmp(readBuffer, ADMINPASS) != 0){
-            memset(writeBuffer, 0, BUFF_SIZE);
-            strcpy(writeBuffer, "Invalid Admin Password. Try again.\n");
-            writeBytes = write(nsd, writeBuffer, BUFF_SIZE);
-            if(writeBytes < 0){
-                perror("Write to client failed");
-                return 0;
-            }
-            continue;
-        }
-
-        // Check if Admin is already logged in
-        int fd = open(ADMIN_LOCK_DB, O_RDWR | O_CREAT, 0644);
-        if(fd < 0){
-            perror("Failed to open admin lock database");
-            return 0;
-        }
-        int isLoggedIn;
-        lockFile(fd, F_WRLCK, 0, 0);
-
-        off_t size = lseek(fd, 0, SEEK_END);
-        lseek(fd, 0, SEEK_SET);
-
-        if(size >= sizeof(isLoggedIn)){
-            lseek(fd, 0, SEEK_SET);
-            read(fd, &isLoggedIn, sizeof(isLoggedIn));
-            if(isLoggedIn){
-                memset(writeBuffer, 0, BUFF_SIZE);
-                strcpy(writeBuffer, "Admin already logged in from another session. Press Enter to Continue.\n");
-                writeBytes = write(nsd, writeBuffer, strlen(writeBuffer));
-                if(writeBytes < 0){
-                    perror("Write to client failed");
-                    unlockFile(fd, 0, 0);
-                    close(fd);
-                    return 0;
-                }
                 unlockFile(fd, 0, 0);
                 close(fd);
-                readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
-                return 2;
+                return 0;
             }
+            unlockFile(fd, 0, 0);
+            close(fd);
+            // readBytes = read(nsd, readBuffer, BUFF_SIZE); // Consume input before retry
+            return 2;
         }
-        
-        isLoggedIn = 1; // Mark as logged in
-        lseek(fd, 0, SEEK_SET);
-        write(fd, &isLoggedIn, sizeof(isLoggedIn));
-        unlockFile(fd, 0, 0);
-        close(fd);
-
-        auth = 1; // Successful authentication
     }
+    
+    isLoggedIn = 1; // Mark as logged in
+    lseek(fd, 0, SEEK_SET);
+    write(fd, &isLoggedIn, sizeof(isLoggedIn));
+    unlockFile(fd, 0, 0);
+    close(fd);
+
     return 1;
 }
 
@@ -332,7 +331,9 @@ int manage_user_roles(int nsd){
     
         readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
         if(strlen(readBuffer) == 0){
-            return 0;
+            strcpy(writeBuffer, "No input received. Operation cancelled.\n");
+            write(nsd, writeBuffer, strlen(writeBuffer));
+            return 2;
         }
 
         choice = atoi(readBuffer);
@@ -348,6 +349,10 @@ int manage_user_roles(int nsd){
                 // Demote Manager to Employee
                 result = demoteManagerToEmployee(nsd);
                 break;
+
+            case 3:
+                // Return to Admin Menu
+                return 1;
 
             default:
                 strcpy(writeBuffer, "Invalid choice. Try again.\n");
@@ -427,7 +432,7 @@ int promoteEmployeeToManager(int nsd){
         if(writeBytes < 0){
             perror("Write to client failed");
         }
-        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+        // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
@@ -500,7 +505,7 @@ int demoteManagerToEmployee(int nsd){
         if(writeBytes < 0){
             perror("Write to client failed");
         }
-        readBytes = read(nsd, readBuffer, sizeof(readBuffer));
+        // readBytes = read(nsd, readBuffer, sizeof(readBuffer));
         return 2;
     }
 
@@ -536,7 +541,9 @@ int modify_customer_employee_details(int nsd){
     
     readBuffer[strcspn(readBuffer, "\n")] = '\0'; // Remove newline
     if(strlen(readBuffer) == 0){
-        return 0;
+        strcpy(writeBuffer, "No input received. Operation cancelled.\n");
+        write(nsd, writeBuffer, strlen(writeBuffer));
+        return 2;
     }
 
 
